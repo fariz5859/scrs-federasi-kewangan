@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}Laporan — {{ review.reference_no }}{% endblock %}
+{% block page_title %}Pratonton Laporan{% endblock %}
+{% block page_subtitle %}{{ review.koperasi_name }} · {{ review.no_pendaftaran }} · {{ review.reference_no }}{% endblock
+%}
+
+{% block header_actions %}
+{% if review.status == 'fedkew_review' %}
+<form method="POST" action="{{ url_for('fedkew.generate_report', rid=review.id) }}"
+    onsubmit="return confirm('Jana laporan PDF? Setelah dijana, status bertukar kepada Selesai.')">
+    <button type="submit" class="btn-primary">📄 Jana Laporan PDF</button>
+</form>
+{% elif review.status == 'report_generated' %}
+<form method="POST" action="{{ url_for('fedkew.generate_report', rid=review.id) }}">
+    <button type="submit" class="btn-secondary">📥 Muat Turun Semula</button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<!-- Progress Tracker (FedKew view — internal steps hidden) -->
+{% set step_map =
+{'draft':1,'resubmit':1,'submitted':2,'ai_processed':3,'koseri_review':3,'koseri_done':3,'fedkew_review':3,'report_generated':4}
+%}
+{% with steps=['Draf','Dihantar','Dalam Semakan','Laporan'], current_step=step_map.get(review.status, 3) %}
+{% include 'components/_progress_tracker.html' %}
+{% endwith %}
+
+<!-- Executive Summary -->
+<div class="mt-6 glass-gold rounded-xl p-6">
+    <h2 class="text-sm font-bold text-gold-400 uppercase tracking-wider mb-4">Ringkasan Eksekutif</h2>
+    <div class="grid grid-cols-4 gap-4 mb-4">
+        <div class="text-center">
+            <div class="text-3xl font-bold text-white">{{ review.case_count }}</div>
+            <div class="text-xs text-gray-500">Jumlah Kes</div>
+        </div>
+        <div class="text-center">
+            <div class="text-3xl font-bold text-green-400">{{ review.compliant_count }}</div>
+            <div class="text-xs text-gray-500">Patuh ✅</div>
+        </div>
+        <div class="text-center">
+            <div class="text-3xl font-bold text-red-400">{{ review.non_compliant_count }}</div>
+            <div class="text-xs text-gray-500">Tidak Patuh ❌</div>
+        </div>
+        <div class="text-center">
+            <div class="text-3xl font-bold text-amber-400">{{ review.needs_review_count }}</div>
+            <div class="text-xs text-gray-500">Perlu Perhatian ⚠️</div>
+        </div>
+    </div>
+    <!-- Overall Opinion -->
+    <div class="p-4 rounded-lg border
+        {% if review.overall_opinion == 'PATUH_SYARIAH' %}bg-green-500/5 border-green-500/20
+        {% elif review.overall_opinion == 'PATUH_SECARA_AMNYA' %}bg-amber-500/5 border-amber-500/20
+        {% else %}bg-red-500/5 border-red-500/20{% endif %}">
+        <div class="text-xs text-gray-500 mb-1">Pendapat Keseluruhan:</div>
+        {% if review.overall_opinion == 'PATUH_SYARIAH' %}
+        <div class="text-sm font-bold text-green-400">✅ PATUH SYARIAH</div>
+        {% elif review.overall_opinion == 'PATUH_SECARA_AMNYA' %}
+        <div class="text-sm font-bold text-amber-400">⚠️ PATUH SYARIAH SECARA AMNYA</div>
+        {% else %}
+        <div class="text-sm font-bold text-red-400">❌ TIDAK PATUH SYARIAH</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Compliance Scoring Overlay (PART 1) -->
+<div class="mt-6 grid grid-cols-3 gap-4">
+    <!-- Severity Distribution -->
+    <div class="glass rounded-xl p-5">
+        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Taburan Penemuan</h3>
+        {% for sev, count in analytics.by_severity.items() %}
+        <div class="flex items-center justify-between py-1.5">
+            {% with severity=sev %}{% include 'components/_severity_badge.html' %}{% endwith %}
+            <span class="text-sm font-bold text-white">{{ count }}</span>
+        </div>
+        {% endfor %}
+        <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-500">
+            {{ analytics.cases_affected_pct }}% kes terjejas
+        </div>
+    </div>
+
+    <!-- By Rule -->
+    <div class="glass rounded-xl p-5">
+        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Penemuan Mengikut Peraturan</h3>
+        {% for rid, data in analytics.by_rule.items() %}
+        <div class="flex items-center justify-between py-1.5 text-xs">
+            <span class="font-mono text-gold-400">{{ rid }}</span>
+            <span class="text-gray-400 truncate mx-2 flex-1">{{ data.name }}</span>
+            <span class="font-bold text-white">{{ data.count }}</span>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- By Product -->
+    <div class="glass rounded-xl p-5">
+        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Mengikut Jenis Produk</h3>
+        {% for product, data in analytics.by_product.items() %}
+        <div class="mb-3 last:mb-0">
+            <div class="text-xs font-medium text-white capitalize mb-1">{{ product }}</div>
+            <div class="flex gap-2 text-[10px]">
+                <span class="text-green-400">✅ {{ data.compliant }}</span>
+                <span class="text-red-400">❌ {{ data.non_compliant }}</span>
+                <span class="text-amber-400">⚠️ {{ data.needs_review }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Repeat Violations Alert -->
+{% if analytics.repeat_violations %}
+<div class="mt-4 p-4 rounded-lg bg-red-500/5 border border-red-500/20 animate-in">
+    <div class="text-xs font-semibold text-red-400 mb-2">🔄 Pelanggaran Berulang</div>
+    {% for rid, data in analytics.repeat_violations.items() %}
+    <div class="text-xs text-gray-300">{{ rid }} — {{ data.name }}: berlaku <strong class="text-red-400">{{ data.count
+            }}x</strong></div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- FedKew Summary (Optional) -->
+<div class="mt-6 glass rounded-xl p-6">
+    <h3 class="text-sm font-semibold text-white mb-3">📝 Ulasan Federasi Kewangan <span
+            class="text-xs text-gray-500 font-normal">(Pilihan)</span></h3>
+    <form method="POST" action="{{ url_for('fedkew.save_summary', rid=review.id) }}">
+        <textarea name="fedkew_summary" rows="4" class="input-field text-sm"
+            placeholder="Masukkan ulasan atau ringkasan tambahan untuk laporan...">{{ review.fedkew_summary or '' }}</textarea>
+        <button type="submit" class="btn-secondary mt-3 text-xs">💾 Simpan Ulasan</button>
+    </form>
+</div>
+
+<!-- Authority Visual Separation (PART 2) -->
+<div class="mt-8 space-y-4">
+    <h2 class="text-sm font-bold text-white uppercase tracking-wider mb-4">Penemuan Terperinci</h2>
+
+    {% for case in review.cases %}
+    <div class="glass rounded-xl overflow-hidden animate-in" style="animation-delay: {{ loop.index * 50 }}ms">
+        <div class="px-5 py-4 border-b border-white/5 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-xs font-mono text-gold-400">{{ case.account_no }}</span>
+                <span class="text-sm text-white font-medium">{{ case.member_name or 'Tanpa Nama' }}</span>
+                <span class="text-xs text-gray-500">{{ case.process_type|title }} · {{
+                    case.product_type|default('—')|title }}</span>
+                <span class="text-xs text-gray-500">RM {{ '{:,.2f}'.format(case.fin_amount or 0) }}</span>
+            </div>
+            <div>
+                {% if case.final_decision == 'compliant' %}
+                <span
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-green-500/10 text-green-400 border border-green-500/20">✅
+                    Patuh</span>
+                {% elif case.final_decision == 'non_compliant' %}
+                <span
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-500/10 text-red-400 border border-red-500/20">❌
+                    Tidak Patuh</span>
+                {% else %}
+                {% if case.ai_conclusion == 'SHARIAH_COMPLIANT' %}
+                <span
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-green-500/10 text-green-400 border border-green-500/20">✅
+                    Patuh</span>
+                {% elif case.ai_conclusion == 'NON_SHARIAH_COMPLIANT' %}
+                <span
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-500/10 text-red-400 border border-red-500/20">❌
+                    Tidak Patuh</span>
+                {% else %}
+                <span
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">⚠️
+                    Perlu Semakan</span>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+
+        {% if case.findings %}
+        <div class="p-5">
+            {% for f in case.findings %}
+            {% with finding=f %}{% include 'components/_finding_block.html' %}{% endwith %}
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="px-5 py-6 text-center text-xs text-gray-500">
+            Tiada penemuan ketidakpatuhan — kes ini patuh Syariah sepenuhnya.
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

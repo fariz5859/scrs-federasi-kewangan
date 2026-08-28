@@ -1,0 +1,35 @@
+{# Finding Block Component — shows a single AI finding with full regulatory detail #}
+{# Usage: {% with finding=f %}{% include 'components/_finding_block.html' %}{% endwith %} #}
+<div
+    class="rounded-lg border {{ 'border-red-500/20 bg-red-500/5' if finding.severity == 'HIGH' else ('border-amber-500/20 bg-amber-500/5' if finding.severity == 'MEDIUM' else 'border-blue-500/20 bg-blue-500/5') }} p-4 mb-3 animate-in">
+    <div class="flex items-start justify-between mb-2">
+        <div class="flex items-center gap-2">
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/5 text-gray-400 border border-white/10">{{
+                finding.rule_id }}</span>
+            <span
+                class="text-sm font-semibold {{ 'text-red-400' if finding.severity == 'HIGH' else ('text-amber-400' if finding.severity == 'MEDIUM' else 'text-blue-400') }}">{{
+                finding.rule_name }}</span>
+        </div>
+        {% set severity = finding.severity %}
+        {% include 'components/_severity_badge.html' %}
+    </div>
+    <div class="space-y-2 text-sm">
+        <div class="flex gap-2">
+            <span class="text-gray-500 whitespace-nowrap min-w-[90px]">Penemuan:</span>
+            <span class="text-gray-200">{{ finding.finding }}</span>
+        </div>
+        <div class="flex gap-2">
+            <span class="text-gray-500 whitespace-nowrap min-w-[90px]">Kesan:</span>
+            <span class="text-gray-300">{{ finding.effect }}</span>
+        </div>
+        <div class="flex gap-2">
+            <span class="text-gray-500 whitespace-nowrap min-w-[90px]">Pembetulan:</span>
+            <span class="text-gray-300">{{ finding.rectification }}</span>
+        </div>
+        <div class="flex gap-2">
+            <span class="text-gray-500 whitespace-nowrap min-w-[90px]">Rujukan:</span>
+            <span class="text-xs font-mono px-1.5 py-0.5 rounded bg-white/5 text-gray-400 border border-white/10">{{
+                finding.source }}</span>
+        </div>
+    </div>
+</div>

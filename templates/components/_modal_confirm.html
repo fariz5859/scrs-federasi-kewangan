@@ -1,0 +1,28 @@
+{# Confirm Modal Component #}
+{# Usage: {% with modal_id='confirm-submit', title='...', message='...', action_url='...', btn_text='...' %}{% include
+'components/_modal_confirm.html' %}{% endwith %} #}
+<div id="{{ modal_id }}" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="glass-light rounded-2xl p-6 w-full max-w-sm mx-4 animate-in">
+        <h3 class="text-lg font-bold text-white mb-2">{{ title }}</h3>
+        <p class="text-sm text-gray-400 mb-6">{{ message }}</p>
+        <div class="flex gap-3">
+            <button
+                onclick="document.getElementById('{{ modal_id }}').classList.add('hidden');document.getElementById('{{ modal_id }}').classList.remove('flex')"
+                class="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10 transition">
+                Batal
+            </button>
+            <form method="POST" action="{{ action_url }}" class="flex-1">
+                {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif
+                %}
+                {% block modal_hidden_fields %}{% endblock %}
+                <button type="submit"
+                    class="w-full px-4 py-2.5 rounded-lg text-sm font-semibold {{ btn_class|default('bg-gov-600 hover:bg-gov-500 text-white') }} transition">
+                    {{ btn_text|default('Ya, Teruskan') }}
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+<script>
+    function showModal(id) { const m = document.getElementById(id); m.classList.remove('hidden'); m.classList.add('flex'); }
+</script>

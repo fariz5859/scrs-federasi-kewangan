@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ms" class="h-full">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log Masuk — SSPS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        @keyframes pulse-glow {
+
+            0%,
+            100% {
+                opacity: 0.15;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.25;
+                transform: scale(1.04);
+            }
+        }
+
+        @keyframes pulse-glow-alt {
+
+            0%,
+            100% {
+                opacity: 0.12;
+                transform: scale(1.02);
+            }
+
+            50% {
+                opacity: 0.22;
+                transform: scale(0.98);
+            }
+        }
+
+        .glow-1 {
+            opacity: 0.15;
+            animation: pulse-glow 6s ease-in-out infinite;
+        }
+
+        .glow-2 {
+            opacity: 0.12;
+            animation: pulse-glow-alt 8s ease-in-out infinite 2s;
+        }
+
+        .glow-3 {
+            opacity: 0.15;
+            animation: pulse-glow 7s ease-in-out infinite 3s;
+        }
+    </style>
+</head>
+
+<body class="h-full bg-[#060e1a] flex items-center justify-center">
+    <div class="absolute inset-0 overflow-hidden">
+        <div class="glow-1 absolute top-[10%] -left-[10%] w-[600px] h-[350px] bg-[#1e3a5f] blur-3xl"
+            style="border-radius: 40% 60% 70% 30% / 50% 30% 70% 50%;"></div>
+        <div class="glow-2 absolute bottom-[5%] -right-[8%] w-[550px] h-[400px] bg-[#0d2847] blur-3xl"
+            style="border-radius: 60% 40% 30% 70% / 40% 60% 50% 50%;"></div>
+        <div class="glow-3 absolute top-[40%] left-[30%] w-[500px] h-[300px] bg-[#0f2d4d] blur-3xl"
+            style="border-radius: 30% 70% 50% 50% / 60% 40% 60% 40%;"></div>
+    </div>
+    </div>
+
+    <div class="relative w-full max-w-md px-6">
+        <!-- Logo -->
+        <div class="text-center mb-10">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="SSPS Logo"
+                style="width:72px;height:72px;border-radius:16px;margin:0 auto 12px;display:block;object-fit:cover;">
+            <h1 class="text-2xl font-bold text-white tracking-tight">SSPS</h1>
+            <p class="text-sm font-bold text-[#d4a853] uppercase tracking-[0.2em] mt-2">Federasi Kewangan</p>
+            <p class="text-sm font-semibold text-gray-400 mt-1">Sistem Semakan Pematuhan Syariah</p>
+        </div>
+
+        <!-- Login Card -->
+        <div class="glass rounded-2xl p-8">
+            <h2 class="text-lg font-semibold text-white mb-1 text-center">Log Masuk</h2>
+            <p class="text-xs text-gray-500 mb-6 text-center">Untuk kakitangan FedKew & Penasihat Syariah sahaja</p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for cat, msg in messages %}
+            <div class="mb-4 px-4 py-2.5 rounded-lg text-sm
+                {% if cat == 'danger' %}bg-red-500/10 border border-red-500/20 text-red-400
+                {% elif cat == 'warning' %}bg-amber-500/10 border border-amber-500/20 text-amber-400
+                {% else %}bg-blue-500/10 border border-blue-500/20 text-blue-400{% endif %}">
+                {{ msg }}
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+
+            <form method="POST" class="space-y-5">
+                <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1.5">Nama Pengguna</label>
+                    <input type="text" name="username" required autocomplete="username"
+                        class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-[#c9952e]/50 focus:ring-1 focus:ring-[#c9952e]/30 transition"
+                        placeholder="cth: fedkew">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1.5">Kata Laluan</label>
+                    <input type="password" name="password" required autocomplete="current-password"
+                        class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-[#c9952e]/50 focus:ring-1 focus:ring-[#c9952e]/30 transition"
+                        placeholder="••••••••">
+                </div>
+                <button type="submit"
+                    class="w-full py-3 rounded-xl bg-gradient-to-r from-[#d4a853] to-[#a67c24] hover:from-[#c9952e] hover:to-[#8b6820] text-[#060e1a] text-sm font-bold transition shadow-lg shadow-[#c9952e]/20">
+                    Log Masuk
+                </button>
+            </form>
+        </div>
+
+
+    </div>
+</body>
+
+</html>

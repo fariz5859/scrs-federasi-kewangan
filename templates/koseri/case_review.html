@@ -1,0 +1,704 @@
+{% extends "base.html" %}
+{% block title %}Kes: {{ case.member_name }}{% endblock %}
+{% block page_title %}{{ case.member_name }}{% endblock %}
+{% block page_subtitle %}{{ case.member_ic }} | {{ case.product_type|replace('_',' ')|title }} | Skor: {{
+case.compliance_score }}%{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <!-- Sticky Verdict Panel (Decision Anchoring) -->
+    <div class="lg:col-span-1 order-2 lg:order-1">
+        <div class="sticky top-24 space-y-4">
+            <!-- Case Status Card -->
+            <div class="glass rounded-xl p-5">
+                <h3 class="text-xs text-gray-500 uppercase tracking-wider mb-3">Panel Keputusan</h3>
+
+                <!-- Score Ring -->
+                <div class="text-center mb-4">
+                    <div class="relative w-24 h-24 mx-auto mb-2">
+                        <svg class="w-24 h-24 transform -rotate-90" viewBox="0 0 36 36">
+                            <circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(255,255,255,0.05)"
+                                stroke-width="2.5" />
+                            <circle cx="18" cy="18" r="15.9" fill="none"
+                                stroke="{% if case.compliance_score >= 80 %}#22c55e{% elif case.compliance_score >= 50 %}#f59e0b{% else %}#ef4444{% endif %}"
+                                stroke-width="2.5" stroke-dasharray="{{ case.compliance_score }}, 100"
+                                stroke-linecap="round" />
+                        </svg>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center">
+                            <span class="text-2xl font-bold text-white">{{ case.compliance_score }}%</span>
+                        </div>
+                    </div>
+                    <div class="text-[10px] text-gray-500 uppercase">Skor Pematuhan</div>
+                </div>
+
+                <!-- Severity Count -->
+                {% set sc = case.severity_counts %}
+                <div class="grid grid-cols-3 gap-1 mb-4">
+                    <div class="text-center p-1.5 rounded bg-red-500/10"><span class="text-xs font-bold text-red-400">{{
+                            sc.kritikal }}</span>
+                        <div class="text-[8px] text-red-400/60">KRI</div>
+                    </div>
+                    <div class="text-center p-1.5 rounded bg-amber-500/10"><span
+                            class="text-xs font-bold text-amber-400">{{ sc.major }}</span>
+                        <div class="text-[8px] text-amber-400/60">MAJ</div>
+                    </div>
+                    <div class="text-center p-1.5 rounded bg-slate-500/10"><span
+                            class="text-xs font-bold text-gray-400">{{ sc.minor }}</span>
+                        <div class="text-[8px] text-gray-400/60">MIN</div>
+                    </div>
+                </div>
+
+                <!-- AI Suggestion -->
+                {% set ai_suggest = 'tidak_patuh' if sc.kritikal > 0 else ('tidak_patuh' if sc.major > 1 else 'patuh')
+                %}
+                <div class="p-2.5 rounded-lg bg-white/3 mb-4">
+                    <div class="text-[10px] text-gray-500 uppercase mb-1">🤖 Cadangan AI</div>
+                    <span
+                        class="text-xs font-semibold {% if ai_suggest == 'patuh' %}text-green-400{% else %}text-red-400{% endif %}">
+                        {{ ai_suggest|upper }}
+                    </span>
+                    <div class="text-[10px] text-gray-600 mt-0.5 italic">AI adalah pembantu, bukan hakim</div>
+                </div>
+
+                <!-- Verdict Form -->
+                {% if not case.l1_locked %}
+                <form method="POST" action="{{ url_for('koseri.submit_verdict', cid=case.id) }}" id="verdictForm">
+                    <div class="grid grid-cols-2 gap-2 mb-3">
+                        <label class="verdict-btn cursor-pointer">
+                            <input type="radio" name="verdict" value="patuh" class="hidden peer" required>
+                            <div
+                                class="py-2.5 rounded-lg text-center text-xs font-bold border border-green-500/20 text-green-500/60 peer-checked:bg-green-600 peer-checked:text-white peer-checked:border-green-600 transition">
+                                ✅ PATUH
+                            </div>
+                        </label>
+                        <label class="verdict-btn cursor-pointer">
+                            <input type="radio" name="verdict" value="tidak_patuh" class="hidden peer">
+                            <div
+                                class="py-2.5 rounded-lg text-center text-xs font-bold border border-red-500/20 text-red-500/60 peer-checked:bg-red-600 peer-checked:text-white peer-checked:border-red-600 transition">
+                                ❌ TIDAK
+                            </div>
+                        </label>
+                    </div>
+                    <textarea name="comments" rows="2"
+                        class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-green-500/50 mb-2"
+                        placeholder="Ulasan..."></textarea>
+
+                    <!-- Override Reason (shows if kritikal exists and patuh selected) -->
+                    <div id="overrideSection" class="hidden mb-3">
+                        <div class="p-2.5 rounded-lg bg-red-500/5 border border-red-500/10 mb-2">
+                            <p class="text-[10px] text-red-400 font-semibold">⚠️ Pelanggaran Urutan Dikesan — Sahkan
+                                Override?</p>
+                            <p class="text-[10px] text-red-400/60">Penemuan Kritikal wujud. Sila nyatakan sebab
+                                override.</p>
+                        </div>
+                        <textarea name="override_reason" rows="2"
+                            class="w-full px-3 py-2 rounded-lg bg-red-500/5 border border-red-500/10 text-white text-xs focus:outline-none"
+                            placeholder="Sebab override (wajib)..."></textarea>
+                    </div>
+
+                    <button type="submit"
+                        class="w-full py-2.5 rounded-lg bg-green-600 hover:bg-green-500 text-white text-xs font-semibold transition">
+                        🔒 Hantar Keputusan (Terkunci Selepas Hantar)
+                    </button>
+                </form>
+                {% else %}
+                <div class="p-3 rounded-lg bg-white/3 text-center">
+                    <span class="text-xs text-gray-500">🔒 Kes Terkunci</span>
+                    <div
+                        class="text-sm font-bold mt-1 {% if case.l1_verdict == 'patuh' %}text-green-400{% else %}text-red-400{% endif %}">
+                        {{ case.l1_verdict|upper }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content (Progressive Disclosure) -->
+    <div class="lg:col-span-3 order-1 lg:order-2 space-y-4">
+
+        <!-- 🤖 AI Analysis Status Panel -->
+        <div class="glass rounded-xl p-5 animate-in">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-xs text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                    🤖 Status Analisis AI
+                    {% if case.ai_processed %}
+                    <span class="px-1.5 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 font-semibold">✅
+                        Selesai</span>
+                    {% else %}
+                    <span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/15 text-amber-400 font-semibold">⏳ Belum
+                        Diproses</span>
+                    {% endif %}
+                </h3>
+                {% if not case.l1_locked %}
+                <button onclick="reAnalyzeCase({{ case.id }})" id="btnReAnalyze"
+                    class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-medium transition flex items-center gap-1">
+                    🔄 Analisis Semula
+                </button>
+                {% endif %}
+            </div>
+
+            {% if case.ai_processed %}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <!-- Docs analyzed -->
+                <div class="p-3 rounded-lg bg-white/3">
+                    <div class="text-[10px] text-gray-500 uppercase mb-1">Dokumen Dianalisis</div>
+                    <div class="text-sm font-semibold text-white">{{ documents|length }} fail</div>
+                    {% if case.ai_processed_at %}
+                    <div class="text-[10px] text-gray-600 mt-0.5">{{ case.ai_processed_at.strftime('%d %b %Y, %H:%M') }}
+                    </div>
+                    {% endif %}
+                </div>
+                <!-- Doc classification -->
+                <div class="p-3 rounded-lg bg-white/3">
+                    <div class="text-[10px] text-gray-500 uppercase mb-1">Klasifikasi Dokumen</div>
+                    {% for doc in documents %}
+                    <div class="text-[10px] text-gray-400 truncate" title="{{ doc.original_filename }}">
+                        {% if doc.ai_classification and doc.ai_classification != 'Tidak Dikenalpasti' %}
+                        <span class="text-green-400">✅</span> {{ doc.ai_classification }}
+                        {% elif doc.ai_classification == 'Tidak Dikenalpasti' %}
+                        <span class="text-amber-400">❓</span> {{ doc.original_filename }}
+                        {% else %}
+                        <span class="text-gray-600">—</span> {{ doc.original_filename }}
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                <!-- Findings summary -->
+                <div class="p-3 rounded-lg bg-white/3">
+                    <div class="text-[10px] text-gray-500 uppercase mb-1">Penemuan AI</div>
+                    {% set sc = case.severity_counts %}
+                    <div class="text-sm font-semibold
+                        {% if sc.kritikal > 0 %}text-red-400
+                        {% elif sc.major > 0 %}text-amber-400
+                        {% elif sc.minor > 0 %}text-gray-400
+                        {% else %}text-green-400{% endif %}">
+                        {% if sc.kritikal + sc.major + sc.minor == 0 %}
+                        ✅ Tiada Pelanggaran
+                        {% else %}
+                        {{ sc.kritikal + sc.major + sc.minor }} penemuan
+                        {% endif %}
+                    </div>
+                    <div class="text-[10px] text-gray-600">
+                        {% if sc.kritikal > 0 %}{{ sc.kritikal }} kritikal · {% endif %}
+                        {% if sc.major > 0 %}{{ sc.major }} major · {% endif %}
+                        {% if sc.minor > 0 %}{{ sc.minor }} minor{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="p-4 rounded-lg bg-amber-500/5 border border-amber-500/10 text-center">
+                <p class="text-xs text-amber-400">⚠️ Kes ini belum dianalisis oleh AI.</p>
+                <p class="text-[10px] text-gray-500 mt-1">Klik "Analisis Semula" untuk memulakan analisis dokumen.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 🔍 Cross-Validation Report (AI Transparency) -->
+        {% if ai_result and ai_result.validation_report is defined %}
+        {% set vr = ai_result.validation_report %}
+        <div class="glass rounded-xl p-5 animate-in">
+            <h3 class="text-xs text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                🔍 Laporan Pengesahan Silang (Cross-Validation)
+            </h3>
+            <div class="space-y-3">
+
+                <!-- Name Check -->
+                <div class="p-3 rounded-lg bg-white/3 border border-white/5">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold text-white flex items-center gap-2">
+                            👤 Nama Pemohon
+                        </span>
+                        {% if vr.name_check.status == 'match' %}
+                        <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 font-semibold">✅
+                            SEPADAN</span>
+                        {% elif vr.name_check.status == 'no_match' %}
+                        <span class="px-2 py-0.5 rounded text-[10px] bg-red-500/15 text-red-400 font-semibold">❌ TIDAK
+                            SEPADAN</span>
+                        {% elif vr.name_check.status == 'no_text' %}
+                        <span class="px-2 py-0.5 rounded text-[10px] bg-gray-500/15 text-gray-400 font-semibold">— TIADA
+                            TEKS</span>
+                        {% else %}
+                        <span class="px-2 py-0.5 rounded text-[10px] bg-gray-500/15 text-gray-500 font-semibold">—
+                            DILANGKAU</span>
+                        {% endif %}
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-[10px]">
+                        <div>
+                            <span class="text-gray-500">Input Borang:</span>
+                            <span class="text-white font-medium ml-1">{{ vr.name_check.input or '—' }}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500">Ditemui dalam:</span>
+                            {% if vr.name_check.found_in %}
+                            <span class="text-green-400 ml-1">{{ vr.name_check.found_in|join(', ') }}</span>
+                            {% else %}
+                            <span class="text-gray-600 ml-1">Tiada padanan</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if vr.name_check.not_found_in %}
+                    <div class="text-[10px] text-amber-400/70 mt-1">
+                        ⚠️ Tidak ditemui dalam: {{ vr.name_check.not_found_in|join(', ') }}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- IC Check -->
+                <div class="p-3 rounded-lg bg-white/3 border border-white/5">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold text-white flex items-center gap-2">
+                            🪪 No. Kad Pengenalan
+                        </span>
+                        {% if vr.ic_check.status == 'match' %}
+                        <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 font-semibold">✅
+                            SEPADAN</span>
+                        {% elif vr.ic_check.status == 'mismatch' %}
+                        <span class="px-2 py-0.5 rounded text-[10px] bg-red-500/15 text-red-400 font-semibold">❌ TIDAK
+                            SEPADAN</span>
+                        {% elif vr.ic_check.status == 'not_found' %}
+                        <span class="px-2 py-0.5 rounded text-[10px] bg-amber-500/15 text-amber-400 font-semibold">⚠️
+                            TIADA KP DIEKSTRAK</span>
+                        {% else %}
+                        <span class="px-2 py-0.5 rounded text-[10px] bg-gray-500/15 text-gray-500 font-semibold">—
+                            DILANGKAU</span>
+                        {% endif %}
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-[10px]">
+                        <div>
+                            <span class="text-gray-500">Input Borang:</span>
+                            <span class="text-white font-mono font-medium ml-1">{{ vr.ic_check.input or '—' }}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500">Diekstrak dari dokumen:</span>
+                            {% if vr.ic_check.extracted %}
+                            <span class="text-white font-mono ml-1">{{ vr.ic_check.extracted|join(', ') }}</span>
+                            {% else %}
+                            <span class="text-gray-600 ml-1">Tiada KP dijumpai</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if vr.ic_check.found_in %}
+                    <div class="text-[10px] text-green-400/70 mt-1">
+                        ✅ Sepadan dalam: {{ vr.ic_check.found_in|join(', ') }}
+                    </div>
+                    {% endif %}
+                    {% if vr.ic_check.not_found_in %}
+                    <div class="text-[10px] text-amber-400/70 mt-1">
+                        ⚠️ Tidak ditemui dalam: {{ vr.ic_check.not_found_in|join(', ') }}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Amount Check -->
+                <div class="p-3 rounded-lg bg-white/3 border border-white/5">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold text-white flex items-center gap-2">
+                            💰 Amaun Pembiayaan
+                        </span>
+                        {% if vr.amount_check.status == 'match' %}
+                        <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 font-semibold">✅
+                            SEPADAN</span>
+                        {% elif vr.amount_check.status == 'mismatch' %}
+                        <span class="px-2 py-0.5 rounded text-[10px] bg-red-500/15 text-red-400 font-semibold">❌ TIDAK
+                            SEPADAN</span>
+                        {% elif vr.amount_check.status == 'not_found' %}
+                        <span class="px-2 py-0.5 rounded text-[10px] bg-amber-500/15 text-amber-400 font-semibold">⚠️
+                            TIADA AMAUN DIEKSTRAK</span>
+                        {% else %}
+                        <span class="px-2 py-0.5 rounded text-[10px] bg-gray-500/15 text-gray-500 font-semibold">—
+                            DILANGKAU</span>
+                        {% endif %}
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-[10px]">
+                        <div>
+                            <span class="text-gray-500">Input Borang:</span>
+                            <span class="text-white font-medium ml-1">RM {{ '{:,.2f}'.format(vr.amount_check.input) if
+                                vr.amount_check.input else '—' }}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500">Diekstrak dari dokumen:</span>
+                            {% if vr.amount_check.extracted %}
+                            <span class="text-white ml-1">
+                                {% for amt in vr.amount_check.extracted %}RM {{ '{:,.2f}'.format(amt) }}{% if not
+                                loop.last %}, {% endif %}{% endfor %}
+                            </span>
+                            {% else %}
+                            <span class="text-gray-600 ml-1">Tiada amaun dijumpai</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if vr.amount_check.found_in %}
+                    <div class="text-[10px] text-green-400/70 mt-1">
+                        ✅ Sepadan dalam: {{ vr.amount_check.found_in|join(', ') }}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Cross-Document Consistency -->
+                {% if vr.cross_doc and vr.cross_doc.issues %}
+                <div class="p-3 rounded-lg bg-red-500/5 border border-red-500/10">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-xs font-semibold text-red-400">🔗 Ketidakkonsistenan Antara Dokumen</span>
+                    </div>
+                    {% for issue in vr.cross_doc.issues %}
+                    <div class="text-[10px] text-red-400/80">⚠️ {{ issue }}</div>
+                    {% endfor %}
+                </div>
+                {% elif vr.cross_doc and vr.cross_doc.ic_consistent %}
+                <div class="p-2 rounded-lg bg-green-500/5 border border-green-500/10 text-center">
+                    <span class="text-[10px] text-green-400">🔗 Data konsisten antara semua dokumen ✅</span>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Per-Document Breakdown (collapsible) -->
+            {% if ai_result.per_doc_data is defined and ai_result.per_doc_data %}
+            <details class="mt-4">
+                <summary
+                    class="cursor-pointer text-[10px] text-gray-500 uppercase tracking-wider hover:text-white transition">
+                    📄 Data Diekstrak Per Dokumen — Klik untuk lihat
+                </summary>
+                <div class="mt-3 space-y-2">
+                    {% for doc_id, dd in ai_result.per_doc_data.items() %}
+                    <div class="p-3 rounded-lg bg-white/2 border border-white/5">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-xs font-medium text-white truncate">{{ dd.filename }}</span>
+                            <span class="text-[10px] text-gray-500 px-1.5 py-0.5 rounded bg-white/5">{{
+                                dd.classification }}</span>
+                        </div>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px]">
+                            <div>
+                                <span class="text-gray-500 block">Nama</span>
+                                {% if dd.names %}
+                                <span class="text-green-400">{{ dd.names|join(', ') }}</span>
+                                {% else %}
+                                <span class="text-gray-600">—</span>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <span class="text-gray-500 block">No. KP</span>
+                                {% if dd.ics %}
+                                <span class="text-white font-mono">{{ dd.ics|join(', ') }}</span>
+                                {% else %}
+                                <span class="text-gray-600">—</span>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <span class="text-gray-500 block">Amaun</span>
+                                {% if dd.amounts %}
+                                <span class="text-white">{% for a in dd.amounts %}RM {{ '{:,.2f}'.format(a) }}{% if not
+                                    loop.last %}, {% endif %}{% endfor %}</span>
+                                {% else %}
+                                <span class="text-gray-600">—</span>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <span class="text-gray-500 block">Tarikh</span>
+                                {% if dd.dates %}
+                                <span class="text-white">{{ dd.dates|join(', ') }}</span>
+                                {% else %}
+                                <span class="text-gray-600">—</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="text-[10px] text-gray-600 mt-1">{{ dd.text_length }} characters extracted</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </details>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- 1️⃣ Risk Summary (always first) -->
+        {% if findings %}
+        <div class="animate-in">
+            <h3 class="text-xs text-gray-500 uppercase tracking-wider mb-3">1️⃣ Ringkasan Penemuan Risiko</h3>
+            {% for f in findings %}
+            <div class="severity-{{ f.severity }} rounded-lg p-4 mb-2 animate-in">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span>{% if f.severity == 'kritikal' %}🚨{% elif f.severity == 'major' %}⚠️{% else %}📋{%
+                                endif %}</span>
+                            <span
+                                class="text-xs font-bold uppercase
+                                {% if f.severity == 'kritikal' %}text-red-400{% elif f.severity == 'major' %}text-amber-400{% else %}text-gray-400{% endif %}">
+                                {{ f.severity }}
+                            </span>
+                            <span class="text-[10px] text-gray-500 px-1.5 py-0.5 rounded bg-white/5">{{ f.source|upper
+                                }}</span>
+                            {% if f.ai_confidence %}
+                            <span class="text-[10px] text-gray-600">🤖 {{ (f.ai_confidence * 100)|int }}%</span>
+                            {% endif %}
+                        </div>
+                        <p class="text-sm text-white font-medium mb-1">{{ f.description_bm }}</p>
+                        <p class="text-xs text-gray-500 italic mb-2">{{ f.description_en }}</p>
+
+                        <!-- Rule Engine Visibility -->
+                        {% if f.evidence %}
+                        <div class="mt-2 p-2.5 rounded bg-white/3">
+                            <div class="text-[10px] text-gray-500 uppercase mb-1">Bukti</div>
+                            <p class="text-xs text-gray-300 font-mono">{{ f.evidence }}</p>
+                        </div>
+                        {% endif %}
+                        {% if f.rule_reference %}
+                        <div class="mt-1 p-2 rounded bg-blue-500/5">
+                            <div class="text-[10px] text-blue-400/60 uppercase mb-0.5">Rujukan Peraturan</div>
+                            <p class="text-xs text-blue-400">{{ f.rule_reference }}</p>
+                        </div>
+                        {% endif %}
+                        {% if f.recommendation_bm %}
+                        <div class="mt-1 p-2 rounded bg-green-500/5">
+                            <div class="text-[10px] text-green-400/60 uppercase mb-0.5">Cadangan</div>
+                            <p class="text-xs text-green-400">{{ f.recommendation_bm }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% elif case.ai_processed %}
+        <div class="glass rounded-xl p-6 text-center animate-in">
+            <span class="text-3xl mb-2 block">✅</span>
+            <p class="text-sm text-green-400 font-medium">Tiada penemuan risiko</p>
+            <p class="text-xs text-gray-500">AI telah menganalisis {{ documents|length }} dokumen — tiada pelanggaran
+                dikesan</p>
+        </div>
+        {% endif %}
+
+        <!-- 2️⃣ Documents (expandable) -->
+        <div class="glass rounded-xl p-5 animate-in">
+            <details open>
+                <summary
+                    class="cursor-pointer text-xs text-gray-500 uppercase tracking-wider hover:text-white transition">
+                    2️⃣ Dokumen Dimuat Naik ({{ documents|length }} fail) — Klik untuk lihat
+                </summary>
+                <div class="mt-3">
+                    <!-- Bulk Actions Bar -->
+                    {% if documents %}
+                    <div class="flex items-center justify-between mb-3 p-2 rounded-lg bg-white/3">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="selectAllDocs"
+                                class="rounded bg-white/10 border-white/20 text-green-500"
+                                onchange="toggleAllDocs(this)">
+                            <span class="text-[10px] text-gray-400">Pilih Semua</span>
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <button onclick="downloadSelected({{ case.id }})"
+                                class="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[10px] text-gray-400 hover:text-white transition"
+                                id="btnDownloadSelected" disabled>
+                                📥 Muat Turun Dipilih
+                            </button>
+                            <a href="{{ url_for('api.download_all_documents', cid=case.id) }}"
+                                class="px-2.5 py-1 rounded-lg bg-green-600/20 hover:bg-green-600/30 text-[10px] text-green-400 hover:text-green-300 transition">
+                                📦 Muat Turun Semua (ZIP)
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="space-y-2">
+                        {% for doc in documents %}
+                        <div
+                            class="flex items-center justify-between p-3 rounded-lg bg-white/3 hover:bg-white/5 transition group">
+                            <div class="flex items-center gap-3">
+                                <input type="checkbox"
+                                    class="doc-checkbox rounded bg-white/10 border-white/20 text-green-500"
+                                    value="{{ doc.id }}" onchange="updateSelectedCount()">
+                                <span class="text-lg">{% if doc.original_filename.endswith('.pdf') %}📄{% elif
+                                    doc.original_filename.endswith(('.jpg','.jpeg','.png')) %}🖼️{% else %}📎{% endif
+                                    %}</span>
+                                <div>
+                                    <div class="text-sm text-white">{{ doc.original_filename }}</div>
+                                    <div class="text-[10px] text-gray-500">{{ doc.doc_type|replace('_',' ')|title }}{%
+                                        if doc.uploaded_at %} | {{ doc.uploaded_at.strftime('%d %b %Y %H:%M') }}{% endif
+                                        %}</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                                <a href="{{ url_for('api.view_document', did=doc.id) }}" target="_blank"
+                                    class="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition"
+                                    title="Lihat">
+                                    👁️
+                                </a>
+                                <a href="{{ url_for('api.download_document', did=doc.id) }}"
+                                    class="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition"
+                                    title="Muat Turun">
+                                    📥
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% if not documents %}
+                        <p class="text-xs text-gray-600 text-center py-3">Tiada dokumen dimuat naik.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </details>
+        </div>
+
+        <!-- 3️⃣ Add Finding (Manual) -->
+        {% if not case.l1_locked %}
+        <div class="glass rounded-xl p-5 animate-in">
+            <details>
+                <summary
+                    class="cursor-pointer text-xs text-gray-500 uppercase tracking-wider hover:text-white transition">
+                    3️⃣ + Tambah Penemuan Baru (Manual)
+                </summary>
+                <form method="POST" action="{{ url_for('koseri.add_finding', cid=case.id) }}" class="mt-4 space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] text-gray-500 mb-1">Tahap</label>
+                            <select name="severity"
+                                class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs">
+                                <option value="kritikal">🚨 Kritikal</option>
+                                <option value="major">⚠️ Major</option>
+                                <option value="minor" selected>📋 Minor</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-gray-500 mb-1">Kategori</label>
+                            <select name="category"
+                                class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs">
+                                <option value="sequence">Urutan Tawarruq</option>
+                                <option value="document">Dokumen</option>
+                                <option value="cross_validation">Pengesahan Silang</option>
+                                <option value="calculation">Pengiraan</option>
+                                <option value="other">Lain-lain</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-gray-500 mb-1">Penemuan (BM)</label>
+                        <textarea name="description_bm" rows="2" required
+                            class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-gray-500 mb-1">Finding (EN)</label>
+                        <textarea name="description_en" rows="2"
+                            class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs"></textarea>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] text-gray-500 mb-1">Bukti</label>
+                            <input name="evidence"
+                                class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-gray-500 mb-1">Rujukan Peraturan</label>
+                            <input name="rule_reference"
+                                class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-gray-500 mb-1">Cadangan (BM)</label>
+                        <textarea name="recommendation_bm" rows="2"
+                            class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs"></textarea>
+                    </div>
+                    <button type="submit"
+                        class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition">+
+                        Tambah Penemuan</button>
+                </form>
+            </details>
+        </div>
+        {% endif %}
+
+        <!-- Back Button -->
+        <a href="{{ url_for('koseri.workbench', rid=kr.id) }}"
+            class="inline-flex items-center gap-2 text-xs text-gray-500 hover:text-white transition mt-2">
+            ← Kembali ke senarai kes
+        </a>
+    </div>
+</div>
+
+<script>
+    // Cognitive Safety Trigger: show override section when kritikal exists and patuh selected
+    {% if sc.kritikal > 0 %}
+    document.querySelectorAll('input[name="verdict"]').forEach(el => {
+        el.addEventListener('change', function () {
+            const overrideSection = document.getElementById('overrideSection');
+            if (this.value === 'patuh') {
+                overrideSection.classList.remove('hidden');
+            } else {
+                overrideSection.classList.add('hidden');
+            }
+        });
+    });
+    {% endif %}
+
+    // Document selection functions
+    function toggleAllDocs(master) {
+        document.querySelectorAll('.doc-checkbox').forEach(cb => cb.checked = master.checked);
+        updateSelectedCount();
+    }
+
+    function updateSelectedCount() {
+        const checked = document.querySelectorAll('.doc-checkbox:checked');
+        const btn = document.getElementById('btnDownloadSelected');
+        if (btn) {
+            btn.disabled = checked.length === 0;
+            btn.textContent = checked.length > 0
+                ? `📥 Muat Turun Dipilih (${checked.length})`
+                : '📥 Muat Turun Dipilih';
+        }
+    }
+
+    async function downloadSelected(caseId) {
+        const checked = document.querySelectorAll('.doc-checkbox:checked');
+        const docIds = Array.from(checked).map(cb => parseInt(cb.value));
+        if (docIds.length === 0) return;
+
+        const response = await fetch(`/api/case/${caseId}/download-selected`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ doc_ids: docIds })
+        });
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `selected_${docIds.length}_docs.zip`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    }
+
+    async function reAnalyzeCase(caseId) {
+        const btn = document.getElementById('btnReAnalyze');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Menganalisis...';
+        }
+
+        try {
+            const response = await fetch(`/api/case/${caseId}/ai-process`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+
+            if (data.ok) {
+                // Show quick result then reload
+                if (btn) btn.innerHTML = `✅ ${data.findings_added} penemuan baru`;
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                if (btn) {
+                    btn.innerHTML = `❌ Ralat: ${data.error}`;
+                    btn.disabled = false;
+                    setTimeout(() => { btn.innerHTML = '🔄 Analisis Semula'; }, 3000);
+                }
+            }
+        } catch (err) {
+            if (btn) {
+                btn.innerHTML = `❌ Gagal: ${err.message}`;
+                btn.disabled = false;
+                setTimeout(() => { btn.innerHTML = '🔄 Analisis Semula'; }, 3000);
+            }
+        }
+    }
+</script>
+{% endblock %}

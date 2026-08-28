@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard Federasi Kewangan{% endblock %}
+{% block page_subtitle %}Pengurusan Semakan Pematuhan Syariah{% endblock %}
+{% block header_actions %}
+<a href="{{ url_for('fedkew.new_review') }}"
+    class="btn-submit-lg bg-gov-600 hover:bg-gov-500 text-white shadow-lg shadow-gov-600/20 inline-flex items-center gap-2"
+    style="text-decoration:none;">
+    ➕ Semakan Baharu
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- ══════════ KPI CARDS ══════════ -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
+    <!-- Jumlah Semakan -->
+    <div class="section-card flex items-start gap-4" style="border-left: 4px solid #64748b;">
+        <div>
+            <div style="font-size: 38px; font-weight: 700; line-height: 1; color: #f1f5f9;">{{ stats.total }}</div>
+            <div
+                style="font-size: 14px; color: #94a3b8; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500;">
+                Jumlah Semakan</div>
+        </div>
+    </div>
+    <!-- Draf -->
+    <div class="section-card flex items-start gap-4" style="border-left: 4px solid #3b82f6;">
+        <div>
+            <div style="font-size: 38px; font-weight: 700; line-height: 1; color: #60a5fa;">{{ stats.draft }}</div>
+            <div
+                style="font-size: 14px; color: #94a3b8; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500;">
+                Draf</div>
+        </div>
+    </div>
+    <!-- Dalam Proses -->
+    <div class="section-card flex items-start gap-4" style="border-left: 4px solid #f59e0b;">
+        <div>
+            <div style="font-size: 38px; font-weight: 700; line-height: 1; color: #fbbf24;">{{ stats.in_progress }}
+            </div>
+            <div
+                style="font-size: 14px; color: #94a3b8; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500;">
+                Dalam Proses</div>
+        </div>
+    </div>
+    <!-- Selesai -->
+    <div class="section-card flex items-start gap-4" style="border-left: 4px solid #22c55e;">
+        <div>
+            <div style="font-size: 38px; font-weight: 700; line-height: 1; color: #4ade80;">{{ stats.completed }}</div>
+            <div
+                style="font-size: 14px; color: #94a3b8; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500;">
+                Selesai</div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ REVIEWS TABLE ══════════ -->
+<div class="section-card" style="padding: 0;">
+    <!-- Table Header -->
+    <div style="padding: 20px 28px; border-bottom: 1px solid rgba(255,255,255,0.06);"
+        class="flex items-center justify-between flex-wrap gap-4">
+        <div>
+            <h2 style="font-size: 20px; font-weight: 600; color: #f1f5f9; margin: 0;">Senarai Semakan</h2>
+            <span style="font-size: 14px; color: #64748b;">{{ reviews|length }} semakan berdaftar</span>
+        </div>
+        <div class="flex items-center gap-3">
+            <input type="text" id="search-input" placeholder="Cari rujukan / koperasi..." class="input-lg"
+                style="width: 260px; height: 40px; font-size: 14px;" oninput="filterTable()">
+            <select id="status-filter" class="input-lg" style="width: 180px; height: 40px; font-size: 14px;"
+                onchange="filterTable()">
+                <option value="">Semua Status</option>
+                <option value="draft">Draf</option>
+                <option value="submitted">Dihantar</option>
+                <option value="ai_processed">Diproses</option>
+                <option value="report_generated">Laporan</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="overflow-x-auto">
+        <table id="reviews-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: rgba(255,255,255,0.03);">
+                    <th
+                        style="padding: 14px 28px; text-align: left; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        No. Rujukan</th>
+                    <th
+                        style="padding: 14px 20px; text-align: left; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        Koperasi</th>
+                    <th
+                        style="padding: 14px 20px; text-align: left; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        No. Pendaftaran</th>
+                    <th
+                        style="padding: 14px 20px; text-align: right; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        Bil Kes</th>
+                    <th
+                        style="padding: 14px 20px; text-align: left; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        Tarikh</th>
+                    <th
+                        style="padding: 14px 20px; text-align: center; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        Status</th>
+                    <th
+                        style="padding: 14px 28px; text-align: right; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        Tindakan</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in reviews %}
+                <tr class="table-row" data-status="{{ r.status }}"
+                    data-search="{{ r.reference_no|lower }} {{ r.koperasi_name|lower }}"
+                    style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s;">
+                    <td style="padding: 16px 28px;">
+                        <span
+                            style="font-size: 15px; font-family: 'JetBrains Mono', monospace; color: #d4a853; font-weight: 500;">{{
+                            r.reference_no }}</span>
+                    </td>
+                    <td style="padding: 16px 20px; font-size: 15px; font-weight: 500; color: #f1f5f9;">{{
+                        r.koperasi_name }}</td>
+                    <td style="padding: 16px 20px; font-size: 14px; color: #94a3b8;">{{ r.no_pendaftaran }}</td>
+                    <td style="padding: 16px 20px; font-size: 15px; text-align: right; color: #cbd5e1;">
+                        {{ r.case_count }} kes
+                        {% if r.non_compliant_count > 0 %}
+                        <span style="font-size: 13px; color: #f87171; margin-left: 4px;">({{ r.non_compliant_count }}
+                            ❌)</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 16px 20px; font-size: 14px; color: #94a3b8;">{{
+                        r.review_date.strftime('%d/%m/%Y') if r.review_date else '—' }}</td>
+                    <td style="padding: 16px 20px; text-align: center;">{% with status=r.status %}{% include
+                        'components/_status_badge.html' %}{% endwith %}</td>
+                    <td style="padding: 16px 28px; text-align: right;">
+                        {% if r.status == 'draft' or r.status == 'resubmit' %}
+                        <a href="{{ url_for('fedkew.data_entry', rid=r.id) }}"
+                            style="font-size: 14px; color: #4ade80; font-weight: 600; text-decoration: none;">Masukkan
+                            Data →</a>
+                        {% elif r.status == 'fedkew_review' %}
+                        <a href="{{ url_for('fedkew.report_preview', rid=r.id) }}"
+                            style="font-size: 14px; color: #d4a853; font-weight: 600; text-decoration: none;">Lihat
+                            Laporan →</a>
+                        {% elif r.status == 'report_generated' %}
+                        <a href="{{ url_for('fedkew.report_preview', rid=r.id) }}"
+                            style="font-size: 14px; color: #22c55e; font-weight: 600; text-decoration: none;">Muat Turun
+                            →</a>
+                        {% elif r.status in ['submitted', 'ai_processed', 'koseri_review', 'koseri_done'] %}
+                        <a href="{{ url_for('fedkew.data_entry', rid=r.id) }}"
+                            style="font-size: 14px; color: #60a5fa; font-weight: 600; text-decoration: none;">Lihat
+                            Data →</a>
+                        {% else %}
+                        <span style="font-size: 14px; color: #64748b;">Menunggu...</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 60px 20px; color: #64748b;">
+                        <div style="font-size: 36px; margin-bottom: 12px;">📋</div>
+                        <div style="font-size: 16px;">Tiada semakan lagi.</div>
+                        <a href="{{ url_for('fedkew.new_review') }}"
+                            style="font-size: 15px; color: #4ade80; text-decoration: none; font-weight: 500;">Cipta
+                            semakan baharu →</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+    .table-row:hover {
+        background: rgba(255, 255, 255, 0.03) !important;
+    }
+</style>
+
+<script>
+    function filterTable() {
+        const search = document.getElementById('search-input').value.toLowerCase();
+        const status = document.getElementById('status-filter').value;
+        document.querySelectorAll('.table-row').forEach(row => {
+            const matchSearch = !search || row.dataset.search.includes(search);
+            const matchStatus = !status || row.dataset.status === status;
+            row.style.display = (matchSearch && matchStatus) ? '' : 'none';
+        });
+    }
+</script>
+{% endblock %}

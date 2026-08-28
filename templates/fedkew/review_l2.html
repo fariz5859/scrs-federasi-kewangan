@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+{% block title %}Semakan L2 — {{ kr.koperasi_name }}{% endblock %}
+{% block page_title %}{{ kr.koperasi_name }}{% endblock %}
+{% block page_subtitle %}Layer 2 Quality Assurance — Semakan FedKew (Keputusan Per Produk){% endblock %}
+
+{% block content %}
+<!-- Overall Summary Banner -->
+<div class="glass rounded-xl p-5 mb-6 animate-in">
+    <div class="flex items-center justify-between">
+        <div>
+            <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Ringkasan Keseluruhan</div>
+            <div class="flex items-center gap-6">
+                <div>
+                    <span class="text-2xl font-bold text-white">{{ kr.compliance_score or '—' }}%</span>
+                    <span class="text-xs text-gray-500 ml-2">Skor Pematuhan</span>
+                </div>
+                <div class="h-8 w-px bg-white/10"></div>
+                <div>
+                    <span class="text-xs text-gray-500">L1:</span>
+                    {% if kr.l1_verdict %}
+                    <span
+                        class="text-sm font-bold {% if kr.l1_verdict == 'patuh' %}text-green-400{% else %}text-red-400{% endif %}">{{
+                        kr.l1_verdict|upper }}</span>
+                    {% else %}<span class="text-sm text-gray-600">Belum</span>{% endif %}
+                </div>
+                <div>
+                    <span class="text-xs text-gray-500">L2:</span>
+                    {% if kr.l2_verdict %}
+                    <span
+                        class="text-sm font-bold {% if kr.l2_verdict == 'patuh' %}text-green-400{% else %}text-red-400{% endif %}">{{
+                        kr.l2_verdict|upper }}</span>
+                    {% else %}<span class="text-sm text-gray-600">Belum</span>{% endif %}
+                </div>
+                <div>
+                    <span class="text-xs text-gray-500">JKS:</span>
+                    {% if kr.jks_verdict %}
+                    <span
+                        class="text-sm font-bold {% if kr.jks_verdict == 'patuh' %}text-green-400{% else %}text-red-400{% endif %}">{{
+                        kr.jks_verdict|upper }}</span>
+                    {% else %}<span class="text-sm text-gray-600">Belum</span>{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="text-right">
+            <div class="text-xs text-gray-500">{{ products|length }} produk</div>
+            <div class="text-xs text-gray-500">{{ cases|length }} kes</div>
+        </div>
+    </div>
+</div>
+
+<!-- Product-Level Review Cards -->
+{% for product_type, product_cases in products.items() %}
+{% set pv = product_verdicts.get(product_type) %}
+{% set ns = namespace(k=0, m=0, mi=0) %}
+{% for c in product_cases %}{% for f in c.findings %}
+{% if f.severity == 'kritikal' %}{% set ns.k = ns.k + 1 %}{% elif f.severity == 'major' %}{% set ns.m = ns.m + 1 %}{%
+else %}{% set ns.mi = ns.mi + 1 %}{% endif %}
+{% endfor %}{% endfor %}
+
+<div class="glass rounded-xl mb-6 animate-in overflow-hidden">
+    <!-- Product Header -->
+    <div class="p-5 border-b border-white/5">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl">{% if product_type == 'peralatan_rumah' %}🏠{% elif product_type == 'kenderaan'
+                    %}🚗{% elif product_type == 'peribadi' %}💰{% elif product_type == 'saham' %}📈{% elif product_type
+                    == 'bertindih' %}🔄{% elif product_type == 'pendidikan' %}📚{% elif product_type == 'kecemasan'
+                    %}🆘{% else %}📦{% endif %}</span>
+                <div>
+                    <h3 class="text-base font-semibold text-white">{{ product_type|replace('_',' ')|title }}</h3>
+                    <p class="text-xs text-gray-500">{{ product_cases|length }} kes</p>
+                </div>
+            </div>
+            <!-- Product Severity Summary -->
+            <div class="flex items-center gap-4">
+                {% if ns.k > 0 %}<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-400">{{
+                    ns.k }} 🚨 Kritikal</span>{% endif %}
+                {% if ns.m > 0 %}<span
+                    class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400">{{ ns.m }} ⚠️
+                    Major</span>{% endif %}
+                {% if ns.mi > 0 %}<span
+                    class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-500/15 text-gray-400">{{ ns.mi }} 📋
+                    Minor</span>{% endif %}
+                <!-- Product Score -->
+                {% set scores = product_cases|map(attribute='compliance_score')|select('ne', none)|list %}
+                {% if scores %}
+                {% set avg = (scores|sum / scores|length)|round(0)|int %}
+                <span class="px-2.5 py-1 rounded-lg text-xs font-bold
+                    {% if avg >= 80 %}bg-green-500/15 text-green-400
+                    {% elif avg >= 50 %}bg-amber-500/15 text-amber-400
+                    {% else %}bg-red-500/15 text-red-400{% endif %}">{{ avg }}%</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3">
+        <!-- Cases Column -->
+        <div class="lg:col-span-2 p-5 border-r border-white/5">
+            {% for c in product_cases %}
+            <div class="p-3 rounded-lg bg-white/3 mb-2">
+                <div class="flex items-center justify-between mb-1">
+                    <div>
+                        <span class="text-sm font-medium text-white">{{ c.member_name }}</span>
+                        <span class="text-xs text-gray-500 ml-2">{{ c.member_ic }}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        {% if c.compliance_score is not none %}
+                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold
+                            {% if c.compliance_score >= 80 %}bg-green-500/15 text-green-400
+                            {% elif c.compliance_score >= 50 %}bg-amber-500/15 text-amber-400
+                            {% else %}bg-red-500/15 text-red-400{% endif %}">{{ c.compliance_score }}%</span>
+                        {% endif %}
+                        {% if c.l1_verdict %}
+                        <span
+                            class="px-1.5 py-0.5 rounded text-[10px] font-bold
+                            {% if c.l1_verdict == 'patuh' %}bg-green-500/20 text-green-400{% else %}bg-red-500/20 text-red-400{% endif %}">
+                            L1: {{ c.l1_verdict|upper }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <!-- Findings in this case -->
+                {% for f in c.findings %}
+                <div class="ml-4 mt-1.5 p-2 rounded severity-{{ f.severity }}">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs">{% if f.severity == 'kritikal' %}🚨{% elif f.severity == 'major' %}⚠️{%
+                            else %}📋{% endif %}</span>
+                        <span class="text-xs text-white">{{ f.description_bm }}</span>
+                    </div>
+                    {% if f.evidence %}<div class="text-[10px] text-gray-500 ml-5 mt-0.5">{{ f.evidence }}</div>{% endif
+                    %}
+                </div>
+                {% endfor %}
+                {% if c.l1_comments %}
+                <div class="ml-4 mt-1.5 p-2 rounded bg-blue-500/5 border border-blue-500/10">
+                    <span class="text-[10px] text-blue-400/60">Ulasan L1:</span>
+                    <span class="text-xs text-gray-300 ml-1">{{ c.l1_comments }}</span>
+                </div>
+                {% endif %}
+                <!-- Documents for this case -->
+                {% set doc_count = c.documents.count() %}
+                {% if doc_count > 0 %}
+                <div class="ml-4 mt-1.5">
+                    <details>
+                        <summary class="cursor-pointer text-[10px] text-gray-500 hover:text-gray-300 transition">
+                            📎 {{ doc_count }} dokumen — Klik untuk lihat/muat turun
+                        </summary>
+                        <div class="mt-1.5 space-y-1">
+                            {% for doc in c.documents %}
+                            <div class="flex items-center justify-between p-1.5 rounded bg-white/3 group">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs">{% if doc.original_filename.endswith('.pdf') %}📄{% elif
+                                        doc.original_filename.endswith(('.jpg','.jpeg','.png')) %}🖼️{% else %}📎{%
+                                        endif %}</span>
+                                    <span class="text-[10px] text-white">{{ doc.original_filename }}</span>
+                                </div>
+                                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                                    <a href="/api/doc/{{ doc.id }}/view" target="_blank"
+                                        class="p-1 rounded hover:bg-white/10 text-[10px] text-gray-400 hover:text-white"
+                                        title="Lihat">👁️</a>
+                                    <a href="/api/doc/{{ doc.id }}/download"
+                                        class="p-1 rounded hover:bg-white/10 text-[10px] text-gray-400 hover:text-white"
+                                        title="Muat Turun">📥</a>
+                                </div>
+                            </div>
+                            {% endfor %}
+                            <a href="/api/case/{{ c.id }}/download-all"
+                                class="inline-block mt-1 px-2 py-0.5 rounded-lg bg-green-600/15 text-[10px] text-green-400 hover:bg-green-600/25 transition">
+                                📦 Muat Turun Semua (ZIP)
+                            </a>
+                        </div>
+                    </details>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Per-Product Verdict Panel -->
+        <div class="p-5">
+            <div class="sticky top-24 space-y-4">
+                <h4 class="text-[10px] text-gray-500 uppercase tracking-wider">Keputusan Produk</h4>
+
+                <!-- L1 Result -->
+                <div class="p-2.5 rounded-lg bg-white/3">
+                    <div class="text-[10px] text-gray-500 uppercase mb-0.5">KoSERI (L1)</div>
+                    {% if pv and pv.l1_verdict %}
+                    <span
+                        class="text-sm font-bold {% if pv.l1_verdict == 'patuh' %}text-green-400{% else %}text-red-400{% endif %}">{{
+                        pv.l1_verdict|upper }}</span>
+                    {% else %}<span class="text-xs text-gray-600">Belum disemak</span>{% endif %}
+                </div>
+
+                <!-- L2 Verdict Form -->
+                <form method="POST" action="{{ url_for('fedkew.submit_product_l2_verdict', rid=kr.id) }}">
+                    <input type="hidden" name="product_type" value="{{ product_type }}">
+                    <div class="text-[10px] text-gray-500 uppercase mb-1.5">FedKew (L2)</div>
+                    <div class="grid grid-cols-2 gap-1.5 mb-2">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="verdict" value="patuh" class="hidden peer" {% if pv and
+                                pv.l2_verdict=='patuh' %}checked{% endif %}>
+                            <div
+                                class="py-2 rounded-lg text-center text-[10px] font-bold border border-green-500/20 text-green-500/60 peer-checked:bg-green-600 peer-checked:text-white peer-checked:border-green-600 transition">
+                                ✅ PATUH
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="verdict" value="tidak_patuh" class="hidden peer" {% if pv and
+                                pv.l2_verdict=='tidak_patuh' %}checked{% endif %}>
+                            <div
+                                class="py-2 rounded-lg text-center text-[10px] font-bold border border-red-500/20 text-red-500/60 peer-checked:bg-red-600 peer-checked:text-white peer-checked:border-red-600 transition">
+                                ❌ TIDAK
+                            </div>
+                        </label>
+                    </div>
+                    <textarea name="comments" rows="2"
+                        class="w-full px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-[10px] focus:outline-none focus:border-green-500/50 mb-2"
+                        placeholder="Ulasan L2...">{{ pv.l2_comments if pv and pv.l2_comments else '' }}</textarea>
+                    <button type="submit"
+                        class="w-full py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-semibold transition">Hantar
+                        L2</button>
+                </form>
+
+                <!-- JKS (show only after L2 done for this product) -->
+                {% if pv and pv.l2_verdict %}
+                <form method="POST" action="{{ url_for('fedkew.record_product_jks_decision', rid=kr.id) }}">
+                    <input type="hidden" name="product_type" value="{{ product_type }}">
+                    <div class="text-[10px] text-gray-500 uppercase mb-1.5 pt-2 border-t border-white/5">Keputusan JKS
+                    </div>
+                    <div class="grid grid-cols-2 gap-1.5 mb-2">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="jks_verdict" value="patuh" class="hidden peer" {% if pv and
+                                pv.jks_verdict=='patuh' %}checked{% endif %}>
+                            <div
+                                class="py-1.5 rounded-lg text-center text-[10px] font-bold border border-green-500/20 text-green-500/60 peer-checked:bg-green-600 peer-checked:text-white transition">
+                                PATUH</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="jks_verdict" value="tidak_patuh" class="hidden peer" {% if pv and
+                                pv.jks_verdict=='tidak_patuh' %}checked{% endif %}>
+                            <div
+                                class="py-1.5 rounded-lg text-center text-[10px] font-bold border border-red-500/20 text-red-500/60 peer-checked:bg-red-600 peer-checked:text-white transition">
+                                TIDAK</div>
+                        </label>
+                    </div>
+                    <button type="submit"
+                        class="w-full py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-semibold transition">Rekod
+                        JKS</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- KoSERI L1 Comments -->
+{% if kr.l1_comments %}
+<div class="glass rounded-xl p-5">
+    <h3 class="text-sm font-semibold text-white mb-3">💬 Ulasan Keseluruhan KoSERI</h3>
+    <p class="text-sm text-gray-300">{{ kr.l1_comments }}</p>
+</div>
+{% endif %}
+{% endblock %}

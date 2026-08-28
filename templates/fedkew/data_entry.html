@@ -1,0 +1,1231 @@
+{% extends "base.html" %}
+{% block title %}{% if readonly %}Lihat Data{% else %}Kemasukan Data{% endif %} — {{ review.reference_no }}{% endblock
+%}
+{% block page_title %}{% if readonly %}Lihat Data{% else %}Kemasukan Data{% endif %}{% endblock %}
+{% block page_subtitle %}{% if readonly %}Data yang telah dihantar (baca sahaja){% else %}Sistem Semakan Pematuhan
+Syariah{% endif %}{% endblock %}
+
+{% block content %}
+<!-- ══════════ STICKY CONTEXT HEADER ══════════ -->
+<div class="sticky-context">
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+            <div>
+                <div class="text-base font-semibold text-white">{{ review.koperasi_name }}</div>
+                <div class="text-sm text-gray-400">{{ review.no_pendaftaran }} · {{ review.reference_no }}</div>
+            </div>
+            {% if review.status == 'draft' %}
+            <span
+                class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-500/10 text-gray-400 border border-gray-500/20">Draf</span>
+            {% elif review.status == 'resubmit' %}
+            <span
+                class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">Perlu
+                Hantar Semula</span>
+            {% else %}
+            <span
+                class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">{{
+                review.status|title }}</span>
+            {% endif %}
+        </div>
+        {% if review.status in ('draft', 'resubmit') %}
+        <form method="POST" action="{{ url_for('fedkew.submit_review', rid=review.id) }}" id="form-submit-top"
+            onsubmit="return confirm('Hantar semua kes untuk semakan? Teruskan?')">
+            <button type="submit"
+                class="btn-submit-lg bg-gov-600 hover:bg-gov-500 text-white shadow-lg shadow-gov-600/20">📤 Hantar untuk
+                Semakan</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Progress Tracker -->
+{% set step_map = {'draft': 1, 'resubmit': 1, 'submitted': 2, 'ai_processed': 3, 'koseri_review': 3, 'koseri_done': 3,
+'fedkew_review': 3, 'report_generated': 4} %}
+{% with steps=['Draf', 'Dihantar', 'Dalam Semakan', 'Laporan'],
+current_step=step_map.get(review.status, 1) %}
+{% include 'components/_progress_tracker.html' %}
+{% endwith %}
+
+{% if review.status == 'resubmit' and review.resubmission_reason %}
+<div class="mt-4 section-card" style="border-color: rgba(239,68,68,0.2); background: rgba(239,68,68,0.03);">
+    <div class="text-sm font-semibold text-red-400 mb-2">🔄 Dikembalikan oleh KoSERI</div>
+    <div class="text-sm text-red-300" style="white-space: pre-line;">{{ review.resubmission_reason }}</div>
+</div>
+
+<!-- ═══ Per-Case Flagged Items ═══ -->
+{% set flagged_cases = review.cases|selectattr('koseri_flag', 'equalto', 'flagged')|list %}
+{% set other_cases = review.cases|rejectattr('koseri_flag', 'equalto', 'flagged')|list %}
+
+{% if flagged_cases %}
+<div class="mt-6 space-y-4">
+    <div style="font-size: 14px; font-weight: 700; color: #fb923c; display: flex; align-items: center; gap: 8px;">
+        🚩 {{ flagged_cases|length }} kes memerlukan tindakan
+    </div>
+
+    {% for case in flagged_cases %}
+    <div class="section-card"
+        style="border-color: {{ 'rgba(34,197,94,0.2)' if case.fedkew_response == 'fixed' else ('rgba(100,116,139,0.2)' if case.fedkew_response == 'cannot_fix' else 'rgba(251,146,60,0.25)') }}; background: {{ 'rgba(34,197,94,0.02)' if case.fedkew_response == 'fixed' else ('rgba(100,116,139,0.02)' if case.fedkew_response == 'cannot_fix' else 'rgba(251,146,60,0.02)') }};">
+        <!-- Case Header -->
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 13px; font-weight: 700; color: #fbbf24; font-family: monospace;">{{
+                    case.account_no }}</span>
+                <span style="font-size: 12px; color: #94a3b8;">{{ case.member_name }}</span>
+                <span
+                    style="font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(6,182,212,0.08); color: #67e8f9; border: 1px solid rgba(6,182,212,0.15);">{{
+                    case.process_type|title }}</span>
+            </div>
+            {% if case.fedkew_response == 'fixed' %}
+            <span
+                style="font-size: 11px; font-weight: 700; color: #4ade80; background: rgba(34,197,94,0.08); padding: 4px 12px; border-radius: 6px; border: 1px solid rgba(34,197,94,0.2);">✅
+                Dikemaskini</span>
+            {% elif case.fedkew_response == 'cannot_fix' %}
+            <span
+                style="font-size: 11px; font-weight: 700; color: #94a3b8; background: rgba(100,116,139,0.08); padding: 4px 12px; border-radius: 6px; border: 1px solid rgba(100,116,139,0.2);">🏳️
+                Tidak Dapat Dilengkapkan</span>
+            {% else %}
+            <span
+                style="font-size: 11px; font-weight: 700; color: #fb923c; background: rgba(251,146,60,0.08); padding: 4px 12px; border-radius: 6px; border: 1px solid rgba(251,146,60,0.2);">✏️
+                Perlu Tindakan</span>
+            {% endif %}
+        </div>
+
+        <!-- KoSERI Reason -->
+        <div
+            style="background: rgba(251,146,60,0.04); border: 1px solid rgba(251,146,60,0.12); border-radius: 8px; padding: 10px 14px; margin-bottom: 14px;">
+            <div
+                style="font-size: 10px; font-weight: 600; color: #fb923c; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">
+                Sebab Penandaan KoSERI</div>
+            <div style="font-size: 12px; color: #e2e8f0;">{{ case.koseri_flag_reason }}</div>
+        </div>
+
+        {% if case.fedkew_response is none %}
+        <!-- Editable Form -->
+        <form method="POST" action="{{ url_for('fedkew.fix_flagged_case', rid=review.id, cid=case.id) }}"
+            enctype="multipart/form-data">
+            <div
+                style="font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px;">
+                Kemaskini Data</div>
+
+            {% if case.process_type == 'tawaruk' %}
+            <div class="form-grid" style="gap: 10px;">
+                <div>
+                    <label class="field-label" style="font-size: 11px;">Tarikh Wakalah</label>
+                    <input type="date" name="wakalah_date" class="input-lg"
+                        value="{{ case.wakalah_date.strftime('%Y-%m-%d') if case.wakalah_date else '' }}" {% if
+                        case.wakalah_date %}style="opacity: 0.5;" title="Sudah diisi" {% endif %}>
+                </div>
+                <div>
+                    <label class="field-label" style="font-size: 11px;">Masa Wakalah</label>
+                    <input type="time" name="wakalah_time" class="input-lg" value="{{ case.wakalah_time or '' }}" {% if
+                        case.wakalah_time %}style="opacity: 0.5;" title="Sudah diisi" {% endif %}>
+                </div>
+                <div>
+                    <label class="field-label" style="font-size: 11px;">Tarikh Permohonan Belian</label>
+                    <input type="date" name="purchase_request_date" class="input-lg"
+                        value="{{ case.purchase_request_date.strftime('%Y-%m-%d') if case.purchase_request_date else '' }}"
+                        {% if case.purchase_request_date %}style="opacity: 0.5;" title="Sudah diisi" {% endif %}>
+                </div>
+                <div>
+                    <label class="field-label" style="font-size: 11px;">Tarikh Kontrak Murabahah</label>
+                    <input type="date" name="murabahah_contract_date" class="input-lg"
+                        value="{{ case.murabahah_contract_date.strftime('%Y-%m-%d') if case.murabahah_contract_date else '' }}"
+                        {% if case.murabahah_contract_date %}style="opacity: 0.5;" title="Sudah diisi" {% endif %}>
+                </div>
+                <div>
+                    <label class="field-label" style="font-size: 11px;">Tarikh Pengeluaran Wang</label>
+                    <input type="date" name="disbursement_date" class="input-lg"
+                        value="{{ case.disbursement_date.strftime('%Y-%m-%d') if case.disbursement_date else '' }}" {%
+                        if case.disbursement_date %}style="opacity: 0.5;" title="Sudah diisi" {% endif %}>
+                </div>
+                <div>
+                    <label class="field-label" style="font-size: 11px;">Masa Pengeluaran</label>
+                    <input type="time" name="disbursement_time" class="input-lg"
+                        value="{{ case.disbursement_time or '' }}" {% if case.disbursement_time %}style="opacity: 0.5;"
+                        title="Sudah diisi" {% endif %}>
+                </div>
+                <div>
+                    <label class="field-label" style="font-size: 11px;">Surat Tawaran</label>
+                    <input type="date" name="surat_tawaran_date" class="input-lg"
+                        value="{{ case.surat_tawaran_date.strftime('%Y-%m-%d') if case.surat_tawaran_date else '' }}" {%
+                        if case.surat_tawaran_date %}style="opacity: 0.5;" title="Sudah diisi" {% endif %}>
+                </div>
+                <div>
+                    <label class="field-label" style="font-size: 11px;">Perjanjian Pembiayaan</label>
+                    <input type="date" name="perjanjian_pembiayaan_date" class="input-lg"
+                        value="{{ case.perjanjian_pembiayaan_date.strftime('%Y-%m-%d') if case.perjanjian_pembiayaan_date else '' }}"
+                        {% if case.perjanjian_pembiayaan_date %}style="opacity: 0.5;" title="Sudah diisi" {% endif %}>
+                </div>
+                <div style="grid-column: span 2;">
+                    <label class="field-label" style="font-size: 11px;">📎 MSC Document</label>
+                    {% if case.doc_msc %}
+                    <div style="font-size: 11px; color: #4ade80; margin-bottom: 4px;">✅ {{ case.doc_msc }}</div>
+                    {% endif %}
+                    <input type="file" name="doc_msc" accept=".pdf,.png,.jpg,.jpeg" class="input-lg">
+                </div>
+            </div>
+            {% elif case.process_type == 'opsyen' %}
+            <div class="form-grid" style="gap: 10px;">
+                <div>
+                    <label class="field-label" style="font-size: 11px;">Surat Opsyen</label>
+                    <input type="date" name="surat_opsyen_date" class="input-lg"
+                        value="{{ case.surat_opsyen_date.strftime('%Y-%m-%d') if case.surat_opsyen_date else '' }}" {%
+                        if case.surat_opsyen_date %}style="opacity: 0.5;" title="Sudah diisi" {% endif %}>
+                </div>
+                <div>
+                    <label class="field-label" style="font-size: 11px;">Perjanjian Pembelian</label>
+                    <input type="date" name="perjanjian_pembelian_date" class="input-lg"
+                        value="{{ case.perjanjian_pembelian_date.strftime('%Y-%m-%d') if case.perjanjian_pembelian_date else '' }}"
+                        {% if case.perjanjian_pembelian_date %}style="opacity: 0.5;" title="Sudah diisi" {% endif %}>
+                </div>
+                <div>
+                    <label class="field-label" style="font-size: 11px;">Wakil Pembelian</label>
+                    <input type="date" name="wakil_pembelian_date" class="input-lg"
+                        value="{{ case.wakil_pembelian_date.strftime('%Y-%m-%d') if case.wakil_pembelian_date else '' }}"
+                        {% if case.wakil_pembelian_date %}style="opacity: 0.5;" title="Sudah diisi" {% endif %}>
+                </div>
+                <div>
+                    <label class="field-label" style="font-size: 11px;">Perjanjian Jualan</label>
+                    <input type="date" name="perjanjian_jualan_date" class="input-lg"
+                        value="{{ case.perjanjian_jualan_date.strftime('%Y-%m-%d') if case.perjanjian_jualan_date else '' }}"
+                        {% if case.perjanjian_jualan_date %}style="opacity: 0.5;" title="Sudah diisi" {% endif %}>
+                </div>
+                <div>
+                    <label class="field-label" style="font-size: 11px;">Wakil Penjualan</label>
+                    <input type="date" name="wakil_penjualan_date" class="input-lg"
+                        value="{{ case.wakil_penjualan_date.strftime('%Y-%m-%d') if case.wakil_penjualan_date else '' }}"
+                        {% if case.wakil_penjualan_date %}style="opacity: 0.5;" title="Sudah diisi" {% endif %}>
+                </div>
+                <div>
+                    <label class="field-label" style="font-size: 11px;">Pengeluaran Wang</label>
+                    <input type="date" name="disbursement_date" class="input-lg"
+                        value="{{ case.disbursement_date.strftime('%Y-%m-%d') if case.disbursement_date else '' }}" {%
+                        if case.disbursement_date %}style="opacity: 0.5;" title="Sudah diisi" {% endif %}>
+                </div>
+                <div>
+                    <label class="field-label" style="font-size: 11px;">Surat Tawaran</label>
+                    <input type="date" name="surat_tawaran_date" class="input-lg"
+                        value="{{ case.surat_tawaran_date.strftime('%Y-%m-%d') if case.surat_tawaran_date else '' }}" {%
+                        if case.surat_tawaran_date %}style="opacity: 0.5;" title="Sudah diisi" {% endif %}>
+                </div>
+                <div>
+                    <label class="field-label" style="font-size: 11px;">Perjanjian Pembiayaan</label>
+                    <input type="date" name="perjanjian_pembiayaan_date" class="input-lg"
+                        value="{{ case.perjanjian_pembiayaan_date.strftime('%Y-%m-%d') if case.perjanjian_pembiayaan_date else '' }}"
+                        {% if case.perjanjian_pembiayaan_date %}style="opacity: 0.5;" title="Sudah diisi" {% endif %}>
+                </div>
+                <div style="grid-column: span 2;">
+                    <label class="field-label" style="font-size: 11px;">📎 Perjanjian Pembelian Document</label>
+                    {% if case.doc_perjanjian_pembelian %}
+                    <div style="font-size: 11px; color: #4ade80; margin-bottom: 4px;">✅ {{ case.doc_perjanjian_pembelian
+                        }}</div>
+                    {% endif %}
+                    <input type="file" name="doc_perjanjian_pembelian" accept=".pdf,.png,.jpg,.jpeg" class="input-lg">
+                </div>
+            </div>
+            {% endif %}
+
+            <div style="display: flex; gap: 10px; margin-top: 14px;">
+                <button type="submit"
+                    style="flex: 1; padding: 10px 16px; border-radius: 8px; font-size: 12px; font-weight: 700; background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.25); color: #4ade80; cursor: pointer; transition: all 0.2s;"
+                    onmouseover="this.style.background='rgba(34,197,94,0.2)'"
+                    onmouseout="this.style.background='rgba(34,197,94,0.1)'">
+                    💾 Simpan Kemaskini
+                </button>
+            </div>
+        </form>
+
+        <!-- Cannot Fix option -->
+        <form method="POST" action="{{ url_for('fedkew.cannot_fix_case', rid=review.id, cid=case.id) }}"
+            style="margin-top: 8px;"
+            onsubmit="var r=prompt('Sebab tidak dapat dilengkapkan:'); if(!r)return false; this.querySelector('[name=reason]').value=r;">
+            <input type="hidden" name="reason" value="">
+            <button type="submit"
+                style="width: 100%; padding: 8px 14px; border-radius: 8px; font-size: 11px; font-weight: 600; background: rgba(100,116,139,0.05); border: 1px solid rgba(100,116,139,0.15); color: #64748b; cursor: pointer; transition: all 0.2s;"
+                onmouseover="this.style.background='rgba(100,116,139,0.1)'"
+                onmouseout="this.style.background='rgba(100,116,139,0.05)'">
+                🏳️ Tidak Dapat Dilengkapkan
+            </button>
+        </form>
+        {% elif case.fedkew_response == 'fixed' %}
+        <div style="font-size: 12px; color: #4ade80;">{{ case.fedkew_response_note }}</div>
+        {% elif case.fedkew_response == 'cannot_fix' %}
+        <div style="font-size: 12px; color: #94a3b8;">Sebab: {{ case.fedkew_response_note }}</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Non-flagged cases (locked) -->
+{% if other_cases %}
+<div class="mt-6">
+    <div
+        style="font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px;">
+        🔒 Kes Lain (Tidak Memerlukan Tindakan)
+    </div>
+    {% for case in other_cases %}
+    <div
+        style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.04); border-radius: 8px; margin-bottom: 4px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 12px; font-weight: 600; color: #fbbf24; font-family: monospace;">{{ case.account_no
+                }}</span>
+            <span style="font-size: 12px; color: #94a3b8;">{{ case.member_name }}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            {% if case.koseri_decision == 'compliant' %}
+            <span style="font-size: 11px; color: #4ade80; font-weight: 600;">✅ Patuh</span>
+            {% elif case.koseri_decision == 'non_compliant' %}
+            <span style="font-size: 11px; color: #f87171; font-weight: 600;">❌ Tidak Patuh</span>
+            {% else %}
+            <span style="font-size: 11px; color: #64748b;">Dalam semakan</span>
+            {% endif %}
+            <span style="font-size: 11px; color: #475569;">🔒</span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Resubmit Button -->
+{% set unresolved = flagged_cases|rejectattr('fedkew_response')|list %}
+<div class="mt-6">
+    <form method="POST" action="{{ url_for('fedkew.resubmit_review', rid=review.id) }}"
+        onsubmit="return confirm('Hantar semula ke KoSERI?')">
+        {% if unresolved|length == 0 %}
+        <button type="submit"
+            style="width: 100%; padding: 14px 24px; border-radius: 10px; font-size: 14px; font-weight: 700; background: linear-gradient(135deg, rgba(6,182,212,0.15), rgba(34,197,94,0.15)); border: 1px solid rgba(6,182,212,0.3); color: #67e8f9; cursor: pointer; transition: all 0.2s;"
+            onmouseover="this.style.background='linear-gradient(135deg, rgba(6,182,212,0.25), rgba(34,197,94,0.25))'"
+            onmouseout="this.style.background='linear-gradient(135deg, rgba(6,182,212,0.15), rgba(34,197,94,0.15))'">
+            📤 Hantar Semula ke KoSERI
+        </button>
+        {% else %}
+        <button type="button" disabled
+            style="width: 100%; padding: 14px 24px; border-radius: 10px; font-size: 14px; font-weight: 600; background: rgba(100,116,139,0.05); border: 1px solid rgba(100,116,139,0.1); color: #475569; cursor: not-allowed;">
+            📤 Hantar Semula ke KoSERI
+            <span style="display: block; font-size: 11px; color: #64748b; margin-top: 2px;">{{ unresolved|length }} kes
+                belum ditindaklanjuti</span>
+        </button>
+        {% endif %}
+    </form>
+</div>
+
+{% endif %}
+
+<!-- ══════════ PROCESS TABS ══════════ -->
+<div class="mt-6 mb-6">
+    <div class="flex gap-1 border-b border-white/5" id="process-tabs">
+        <button onclick="switchTab('tawaruk')" id="tab-tawaruk"
+            class="tab-btn active px-6 py-3 text-base font-medium border-b-2 transition">
+            Tawaruk <span class="text-sm text-gray-500 ml-1">({{ cases_by_type.tawaruk|length }})</span>
+        </button>
+        <button onclick="switchTab('opsyen')" id="tab-opsyen"
+            class="tab-btn px-6 py-3 text-base font-medium border-b-2 transition">
+            Opsyen / Bai'nah <span class="text-sm text-gray-500 ml-1">({{ cases_by_type.opsyen|length }})</span>
+        </button>
+        <button onclick="switchTab('early_settlement')" id="tab-early_settlement"
+            class="tab-btn px-6 py-3 text-base font-medium border-b-2 transition">
+            Penyelesaian Awal <span class="text-sm text-gray-500 ml-1">({{ cases_by_type.early_settlement|length
+                }})</span>
+        </button>
+    </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════════════╗ -->
+<!-- ║               TAWARUK TAB                       ║ -->
+<!-- ╚══════════════════════════════════════════════════╝ -->
+<div id="panel-tawaruk" class="tab-panel space-y-6">
+
+    <!-- Existing Cases Table -->
+    {% if cases_by_type.tawaruk %}
+    <div
+        style="background: rgba(15,23,42,0.5); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; overflow: hidden; margin-bottom: 24px;">
+        <!-- Table Header -->
+        <div
+            style="padding: 16px 24px; background: linear-gradient(135deg, rgba(6,182,212,0.06), rgba(59,130,246,0.04)); border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 18px;">📋</span>
+                    <div>
+                        <div style="font-size: 14px; font-weight: 700; color: #e2e8f0; letter-spacing: 0.01em;">Senarai
+                            Kes Tawaruk</div>
+                        <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Commodity Murabahah — {{
+                            cases_by_type.tawaruk|length }} rekod</div>
+                    </div>
+                </div>
+                <span
+                    style="font-size: 11px; padding: 4px 12px; border-radius: 20px; background: rgba(6,182,212,0.08); border: 1px solid rgba(6,182,212,0.15); color: #67e8f9; font-weight: 600;">{{
+                    cases_by_type.tawaruk|length }} kes</span>
+            </div>
+        </div>
+        <!-- Table -->
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; min-width: 1000px;">
+                <thead>
+                    <tr style="background: rgba(255,255,255,0.02);">
+                        <th
+                            style="padding: 12px 16px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.06); white-space: nowrap;">
+                            No. Akaun</th>
+                        <th
+                            style="padding: 12px 16px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            Nama Anggota</th>
+                        <th
+                            style="padding: 12px 12px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            Produk</th>
+                        <th
+                            style="padding: 12px 16px; text-align: right; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            Jumlah (RM)</th>
+                        <th
+                            style="padding: 12px 12px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            Permohonan</th>
+                        <th
+                            style="padding: 12px 12px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #06b6d4; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            ① Wakalah</th>
+                        <th
+                            style="padding: 12px 12px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #06b6d4; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            ② Murabahah</th>
+                        <th
+                            style="padding: 12px 12px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #06b6d4; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            ③ Disbursement</th>
+                        <th
+                            style="padding: 12px 16px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            Dokumen MSC</th>
+                        {% if not readonly %}<th
+                            style="padding: 12px 12px; text-align: center; font-size: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); width: 40px;">
+                        </th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in cases_by_type.tawaruk %}
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.15s;"
+                        onmouseover="this.style.background='rgba(255,255,255,0.02)'"
+                        onmouseout="this.style.background='transparent'">
+                        <td style="padding: 14px 16px;">
+                            <span
+                                style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #d4a853; background: rgba(212,168,83,0.08); padding: 3px 10px; border-radius: 5px; border: 1px solid rgba(212,168,83,0.15);">{{
+                                c.account_no }}</span>
+                        </td>
+                        <td style="padding: 14px 16px; font-size: 13px; color: #e2e8f0; font-weight: 500;">{{
+                            c.member_name or '—' }}</td>
+                        <td style="padding: 14px 12px; text-align: center;">
+                            <span
+                                style="font-size: 11px; padding: 3px 10px; border-radius: 5px; background: rgba(139,92,246,0.08); border: 1px solid rgba(139,92,246,0.15); color: #a78bfa; font-weight: 500; text-transform: capitalize;">{{
+                                c.product_type or '—' }}</span>
+                        </td>
+                        <td
+                            style="padding: 14px 16px; text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: #fbbf24;">
+                            {{ '{:,.0f}'.format(c.fin_amount or 0) }}</td>
+                        <td style="padding: 14px 12px; text-align: center; font-size: 12px; color: #94a3b8;">{{
+                            c.date_appli.strftime('%d/%m/%Y') if c.date_appli else '—' }}</td>
+                        <td
+                            style="padding: 14px 12px; text-align: center; font-size: 12px; {{ 'color: #f87171; font-weight: 700;' if not c.wakalah_date else 'color: #cbd5e1;' }}">
+                            {{ c.wakalah_date.strftime('%d/%m/%Y') if c.wakalah_date else '✗ TIADA' }}</td>
+                        <td
+                            style="padding: 14px 12px; text-align: center; font-size: 12px; {{ 'color: #f87171; font-weight: 700;' if not c.murabahah_contract_date else 'color: #cbd5e1;' }}">
+                            {{ c.murabahah_contract_date.strftime('%d/%m/%Y') if c.murabahah_contract_date else '✗
+                            TIADA' }}</td>
+                        <td
+                            style="padding: 14px 12px; text-align: center; font-size: 12px; {{ 'color: #f87171; font-weight: 700;' if not c.disbursement_date else 'color: #cbd5e1;' }}">
+                            {{ c.disbursement_date.strftime('%d/%m/%Y') if c.disbursement_date else '✗ TIADA' }}</td>
+                        <td style="padding: 14px 16px; text-align: center;">
+                            {% if c.doc_msc %}
+                            <button
+                                onclick="previewDoc('{{ url_for('fedkew.serve_case_doc', cid=c.id, field='doc_msc') }}', '{{ c.doc_msc }}')"
+                                style="font-size: 11px; padding: 5px 14px; border-radius: 20px; background: rgba(6,182,212,0.06); border: 1px solid rgba(6,182,212,0.18); color: #67e8f9; cursor: pointer; font-weight: 600; transition: all 0.2s; white-space: nowrap;"
+                                onmouseover="this.style.background='rgba(6,182,212,0.15)'"
+                                onmouseout="this.style.background='rgba(6,182,212,0.06)'">
+                                📄 {{ c.doc_msc[:18] }}{% if c.doc_msc|length > 18 %}…{% endif %}
+                            </button>
+                            {% else %}
+                            <span style="font-size: 11px; color: #475569; font-style: italic;">Tiada fail</span>
+                            {% endif %}
+                        </td>
+                        {% if not readonly %}
+                        <td style="padding: 14px 12px; text-align: center;">
+                            <form method="POST" action="{{ url_for('fedkew.delete_case', rid=review.id, cid=c.id) }}"
+                                onsubmit="return confirm('Padam kes {{ c.account_no }}?')">
+                                <button type="submit"
+                                    style="font-size: 14px; padding: 4px 8px; border-radius: 6px; background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.12); color: #f87171; cursor: pointer; transition: all 0.2s;"
+                                    onmouseover="this.style.background='rgba(239,68,68,0.15)'"
+                                    onmouseout="this.style.background='rgba(239,68,68,0.06)'">🗑</button>
+                            </form>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- Table Footer -->
+        <div
+            style="padding: 10px 24px; background: rgba(255,255,255,0.01); border-top: 1px solid rgba(255,255,255,0.04); display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 11px; color: #475569;">Jumlah: {{ cases_by_type.tawaruk|length }} kes</span>
+            <span style="font-size: 11px; color: #475569;">Amaun: <span
+                    style="color: #fbbf24; font-weight: 600; font-family: 'JetBrains Mono', monospace;">RM {{
+                    '{:,.2f}'.format(cases_by_type.tawaruk|sum(attribute='fin_amount')) }}</span></span>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Add New Case Form -->
+    {% if can_append %}
+    <form method="POST" action="{{ url_for('fedkew.add_case', rid=review.id) }}" class="space-y-6"
+        enctype="multipart/form-data">
+        <input type="hidden" name="process_type" value="tawaruk">
+
+        <!-- SECTION A — Maklumat Asas Pembiayaan -->
+        <div class="section-card">
+            <div class="section-title">
+                <span class="section-label">Section A</span>
+                Maklumat Asas Pembiayaan <span class="field-helper">(Basic Financing Information)</span>
+            </div>
+            <div class="form-grid">
+                <div>
+                    <label class="field-label">No. Akaun <span class="field-helper">(Account No.)</span> <span
+                            class="field-required">*</span></label>
+                    <input name="account_no" required class="input-lg" placeholder="ACC-001">
+                </div>
+                <div>
+                    <label class="field-label">Nama Ahli <span class="field-helper">(Member Name)</span></label>
+                    <input name="member_name" class="input-lg" placeholder="Nama penuh ahli">
+                </div>
+                <div>
+                    <label class="field-label">Jenis Produk <span class="field-helper">(Product Type)</span></label>
+                    <select name="product_type" class="input-lg">
+                        <option value="peribadi">Peribadi (Personal)</option>
+                        <option value="kenderaan">Kenderaan (Vehicle)</option>
+                        <option value="peralatan_rumah">Peralatan Rumah (Home Appliance)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="field-label">Amaun <span class="field-helper">(Amount RM)</span> <span
+                            class="field-required">*</span></label>
+                    <input name="fin_amount" type="number" step="0.01" required class="input-lg"
+                        placeholder="50,000.00">
+                </div>
+                <div>
+                    <label class="field-label">Tarikh Permohonan Pembiayaan <span class="field-helper">(Financing
+                            Application Date)</span></label>
+                    <input name="date_appli" type="date" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Tempoh Bulan <span class="field-helper">(Tenure Months)</span></label>
+                    <input name="tenure_period" type="number" class="input-lg" placeholder="60">
+                </div>
+                <div>
+                    <label class="field-label">Surat Tawaran <span class="field-helper">(Offer Letter
+                            Date)</span></label>
+                    <input name="surat_tawaran_date" type="date" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Surat Penerimaan <span class="field-helper">(Acceptance
+                            Letter)</span></label>
+                    <input name="surat_penerimaan_date" type="date" class="input-lg">
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION B — Proses Pembelian Komoditi -->
+        <div class="section-card">
+            <div class="section-title">
+                <span class="section-label">Section B</span>
+                Proses Pembelian Komoditi <span class="field-helper">(Commodity Purchase Process)</span>
+            </div>
+            <div class="form-grid">
+                <div>
+                    <label class="field-label">Wakalah Tarikh <span class="field-helper">(Wakalah Date)</span></label>
+                    <input name="wakalah_date" type="date" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Wakalah Masa <span class="field-helper">(Wakalah Time —
+                            24hr)</span></label>
+                    <select name="wakalah_time" class="input-lg">
+                        <option value="">— Pilih Masa —</option>
+                        {% for h in range(24) %}{% for m in ['00','30'] %}<option
+                            value="{{ '%02d'|format(h) }}:{{ m }}">{{ '%02d'|format(h) }}:{{ m }}</option>{% endfor %}{%
+                        endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="field-label">Arahan Belian Komoditi <span class="field-helper">(Commodity Purchase
+                            Order)</span></label>
+                    <input name="purchase_request_date" type="date" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Kontrak Murabahah <span class="field-helper">(Murabahah Contract
+                            Date)</span></label>
+                    <input name="murabahah_contract_date" type="date" class="input-lg">
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION C — Pengeluaran Wang -->
+        <div class="section-card">
+            <div class="section-title">
+                <span class="section-label">Section C</span>
+                Pengeluaran Wang <span class="field-helper">(Disbursement)</span>
+            </div>
+            <div class="form-grid">
+                <div>
+                    <label class="field-label">Pengeluaran Wang Tarikh <span class="field-helper">(Disbursement
+                            Date)</span></label>
+                    <input name="disbursement_date" type="date" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Pengeluaran Wang Masa <span class="field-helper">(Disbursement Time —
+                            24hr)</span></label>
+                    <select name="disbursement_time" class="input-lg">
+                        <option value="">— Pilih Masa —</option>
+                        {% for h in range(24) %}{% for m in ['00','30'] %}<option
+                            value="{{ '%02d'|format(h) }}:{{ m }}">{{ '%02d'|format(h) }}:{{ m }}</option>{% endfor %}{%
+                        endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- DOCUMENT UPLOAD -->
+        <div class="section-card">
+            <div class="section-title">
+                <span class="section-label">📎 Dokumen</span>
+                Muat Naik MSC <span class="field-helper">(Murabahah Sales Contract)</span>
+            </div>
+            <div style="padding: 16px 20px;">
+                <label
+                    style="display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-radius: 10px; background: rgba(6,182,212,0.04); border: 1.5px dashed rgba(6,182,212,0.2); cursor: pointer; transition: all 0.2s;"
+                    onmouseover="this.style.borderColor='rgba(6,182,212,0.4)'; this.style.background='rgba(6,182,212,0.06)'"
+                    onmouseout="this.style.borderColor='rgba(6,182,212,0.2)'; this.style.background='rgba(6,182,212,0.04)'">
+                    <span style="font-size: 24px;">📄</span>
+                    <div>
+                        <div style="font-size: 13px; font-weight: 600; color: #67e8f9;">Pilih fail MSC</div>
+                        <div style="font-size: 11px; color: #64748b;">Format: PDF, JPG, PNG (maks 10MB)</div>
+                    </div>
+                    <input type="file" name="case_document" accept=".pdf,.jpg,.jpeg,.png" style="display: none;"
+                        onchange="this.closest('label').querySelector('.file-name').textContent = this.files[0]?.name || 'Belum dipilih'">
+                    <span class="file-name" style="font-size: 12px; color: #94a3b8; margin-left: auto;">Belum
+                        dipilih</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- SUBMIT AREA -->
+        <div class="section-divider"></div>
+        <div class="flex justify-end pt-2">
+            <button type="submit"
+                class="btn-submit-lg bg-gov-600 hover:bg-gov-500 text-white shadow-lg shadow-gov-600/20">
+                ➕ Tambah Kes Baharu
+            </button>
+        </div>
+    </form>
+    {% endif %}
+</div>
+
+<!-- ╔══════════════════════════════════════════════════╗ -->
+<!-- ║             OPSYEN / BAI'NAH TAB                ║ -->
+<!-- ╚══════════════════════════════════════════════════╝ -->
+<div id="panel-opsyen" class="tab-panel hidden space-y-6">
+
+    {% if cases_by_type.opsyen %}
+    <div
+        style="background: rgba(15,23,42,0.5); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; overflow: hidden; margin-bottom: 24px;">
+        <!-- Table Header -->
+        <div
+            style="padding: 16px 24px; background: linear-gradient(135deg, rgba(168,85,247,0.06), rgba(139,92,246,0.04)); border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 18px;">🔄</span>
+                    <div>
+                        <div style="font-size: 14px; font-weight: 700; color: #e2e8f0; letter-spacing: 0.01em;">Senarai
+                            Kes Opsyen / Bai'nah</div>
+                        <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Buy-Back Transaction — {{
+                            cases_by_type.opsyen|length }} rekod</div>
+                    </div>
+                </div>
+                <span
+                    style="font-size: 11px; padding: 4px 12px; border-radius: 20px; background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.15); color: #c084fc; font-weight: 600;">{{
+                    cases_by_type.opsyen|length }} kes</span>
+            </div>
+        </div>
+        <!-- Table -->
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; min-width: 960px;">
+                <thead>
+                    <tr style="background: rgba(255,255,255,0.02);">
+                        <th
+                            style="padding: 12px 16px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.06); white-space: nowrap;">
+                            No. Akaun</th>
+                        <th
+                            style="padding: 12px 16px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            Nama Anggota</th>
+                        <th
+                            style="padding: 12px 12px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            Produk</th>
+                        <th
+                            style="padding: 12px 16px; text-align: right; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            Jumlah (RM)</th>
+                        <th
+                            style="padding: 12px 12px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #c084fc; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            Surat Opsyen</th>
+                        <th
+                            style="padding: 12px 12px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #c084fc; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            ① Pembelian</th>
+                        <th
+                            style="padding: 12px 12px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #c084fc; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            ② Jualan</th>
+                        <th
+                            style="padding: 12px 12px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #c084fc; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            ③ Disbursement</th>
+                        <th
+                            style="padding: 12px 16px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            Dokumen</th>
+                        {% if not readonly %}<th
+                            style="padding: 12px 12px; text-align: center; font-size: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); width: 40px;">
+                        </th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in cases_by_type.opsyen %}
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.15s;"
+                        onmouseover="this.style.background='rgba(255,255,255,0.02)'"
+                        onmouseout="this.style.background='transparent'">
+                        <td style="padding: 14px 16px;">
+                            <span
+                                style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #d4a853; background: rgba(212,168,83,0.08); padding: 3px 10px; border-radius: 5px; border: 1px solid rgba(212,168,83,0.15);">{{
+                                c.account_no }}</span>
+                        </td>
+                        <td style="padding: 14px 16px; font-size: 13px; color: #e2e8f0; font-weight: 500;">{{
+                            c.member_name or '—' }}</td>
+                        <td style="padding: 14px 12px; text-align: center;">
+                            <span
+                                style="font-size: 11px; padding: 3px 10px; border-radius: 5px; background: rgba(139,92,246,0.08); border: 1px solid rgba(139,92,246,0.15); color: #a78bfa; font-weight: 500; text-transform: capitalize;">{{
+                                c.product_type or '—' }}</span>
+                        </td>
+                        <td
+                            style="padding: 14px 16px; text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: #fbbf24;">
+                            {{ '{:,.0f}'.format(c.fin_amount or 0) }}</td>
+                        <td
+                            style="padding: 14px 12px; text-align: center; font-size: 12px; {{ 'color: #f87171; font-weight: 700;' if not c.surat_opsyen_date else 'color: #cbd5e1;' }}">
+                            {{ c.surat_opsyen_date.strftime('%d/%m/%Y') if c.surat_opsyen_date else '✗ TIADA' }}</td>
+                        <td
+                            style="padding: 14px 12px; text-align: center; font-size: 12px; {{ 'color: #f87171; font-weight: 700;' if not c.perjanjian_pembelian_date else 'color: #cbd5e1;' }}">
+                            {{ c.perjanjian_pembelian_date.strftime('%d/%m/%Y') if c.perjanjian_pembelian_date else '✗
+                            TIADA' }}</td>
+                        <td
+                            style="padding: 14px 12px; text-align: center; font-size: 12px; {{ 'color: #f87171; font-weight: 700;' if not c.perjanjian_jualan_date else 'color: #cbd5e1;' }}">
+                            {{ c.perjanjian_jualan_date.strftime('%d/%m/%Y') if c.perjanjian_jualan_date else '✗ TIADA'
+                            }}</td>
+                        <td
+                            style="padding: 14px 12px; text-align: center; font-size: 12px; {{ 'color: #f87171; font-weight: 700;' if not c.disbursement_date else 'color: #cbd5e1;' }}">
+                            {{ c.disbursement_date.strftime('%d/%m/%Y') if c.disbursement_date else '✗ TIADA' }}</td>
+                        <td style="padding: 14px 16px; text-align: center;">
+                            {% if c.doc_perjanjian_pembelian %}
+                            <button
+                                onclick="previewDoc('{{ url_for('fedkew.serve_case_doc', cid=c.id, field='doc_perjanjian_pembelian') }}', '{{ c.doc_perjanjian_pembelian }}')"
+                                style="font-size: 11px; padding: 5px 14px; border-radius: 20px; background: rgba(6,182,212,0.06); border: 1px solid rgba(6,182,212,0.18); color: #67e8f9; cursor: pointer; font-weight: 600; transition: all 0.2s; white-space: nowrap;"
+                                onmouseover="this.style.background='rgba(6,182,212,0.15)'"
+                                onmouseout="this.style.background='rgba(6,182,212,0.06)'">
+                                📄 {{ c.doc_perjanjian_pembelian[:18] }}{% if c.doc_perjanjian_pembelian|length > 18
+                                %}…{% endif %}
+                            </button>
+                            {% else %}
+                            <span style="font-size: 11px; color: #475569; font-style: italic;">Tiada fail</span>
+                            {% endif %}
+                        </td>
+                        {% if not readonly %}
+                        <td style="padding: 14px 12px; text-align: center;">
+                            <form method="POST" action="{{ url_for('fedkew.delete_case', rid=review.id, cid=c.id) }}"
+                                onsubmit="return confirm('Padam kes {{ c.account_no }}?')">
+                                <button type="submit"
+                                    style="font-size: 14px; padding: 4px 8px; border-radius: 6px; background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.12); color: #f87171; cursor: pointer; transition: all 0.2s;"
+                                    onmouseover="this.style.background='rgba(239,68,68,0.15)'"
+                                    onmouseout="this.style.background='rgba(239,68,68,0.06)'">🗑</button>
+                            </form>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- Table Footer -->
+        <div
+            style="padding: 10px 24px; background: rgba(255,255,255,0.01); border-top: 1px solid rgba(255,255,255,0.04); display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 11px; color: #475569;">Jumlah: {{ cases_by_type.opsyen|length }} kes</span>
+            <span style="font-size: 11px; color: #475569;">Amaun: <span
+                    style="color: #fbbf24; font-weight: 600; font-family: 'JetBrains Mono', monospace;">RM {{
+                    '{:,.2f}'.format(cases_by_type.opsyen|sum(attribute='fin_amount')) }}</span></span>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if can_append %}
+    <form method="POST" action="{{ url_for('fedkew.add_case', rid=review.id) }}" class="space-y-6"
+        enctype="multipart/form-data">
+        <input type="hidden" name="process_type" value="opsyen">
+
+        <!-- SECTION A — Maklumat Asas Pembiayaan -->
+        <div class="section-card">
+            <div class="section-title">
+                <span class="section-label">Section A</span>
+                Maklumat Asas Pembiayaan <span class="field-helper">(Basic Financing Information)</span>
+            </div>
+            <div class="form-grid">
+                <div>
+                    <label class="field-label">No. Akaun <span class="field-helper">(Account No.)</span> <span
+                            class="field-required">*</span></label>
+                    <input name="account_no" required class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Nama Ahli <span class="field-helper">(Member Name)</span></label>
+                    <input name="member_name" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Jenis Produk <span class="field-helper">(Product Type)</span></label>
+                    <select name="product_type" class="input-lg">
+                        <option value="peribadi">Peribadi (Personal)</option>
+                        <option value="kenderaan">Kenderaan (Vehicle)</option>
+                        <option value="peralatan_rumah">Peralatan Rumah (Home Appliance)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="field-label">Amaun <span class="field-helper">(Amount RM)</span></label>
+                    <input name="fin_amount" type="number" step="0.01" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Tarikh Permohonan Pembiayaan <span class="field-helper">(Application
+                            Date)</span></label>
+                    <input name="date_appli" type="date" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Tempoh Bulan <span class="field-helper">(Tenure Months)</span></label>
+                    <input name="tenure_period" type="number" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Surat Tawaran <span class="field-helper">(Offer Letter
+                            Date)</span></label>
+                    <input name="surat_tawaran_date" type="date" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Perjanjian Pembiayaan <span class="field-helper">(Financing
+                            Agreement)</span></label>
+                    <input name="perjanjian_pembiayaan_date" type="date" class="input-lg">
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION B — Dokumen Bai'nah -->
+        <div class="section-card">
+            <div class="section-title">
+                <span class="section-label">Section B</span>
+                Dokumen Bai'nah <span class="field-helper">(Bai'nah Transaction Documents)</span>
+            </div>
+            <div class="form-grid">
+                <div>
+                    <label class="field-label">Surat Opsyen <span class="field-helper">(Option Letter)</span></label>
+                    <input name="surat_opsyen_date" type="date" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Perjanjian Pembelian <span class="field-helper">(Purchase
+                            Agreement)</span></label>
+                    <input name="perjanjian_pembelian_date" type="date" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Wakil Pembelian <span class="field-helper">(Purchase
+                            Agent)</span></label>
+                    <input name="wakil_pembelian_date" type="date" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Perjanjian Jualan <span class="field-helper">(Sale
+                            Agreement)</span></label>
+                    <input name="perjanjian_jualan_date" type="date" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Wakil Penjualan <span class="field-helper">(Sale Agent)</span></label>
+                    <input name="wakil_penjualan_date" type="date" class="input-lg">
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION C — Pengeluaran Wang -->
+        <div class="section-card">
+            <div class="section-title">
+                <span class="section-label">Section C</span>
+                Pengeluaran Wang <span class="field-helper">(Disbursement)</span>
+            </div>
+            <div class="form-grid">
+                <div>
+                    <label class="field-label">Pengeluaran Wang <span class="field-helper">(Disbursement
+                            Date)</span></label>
+                    <input name="disbursement_date" type="date" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Pengeluaran Wang Masa <span class="field-helper">(Disbursement Time —
+                            24hr)</span></label>
+                    <select name="disbursement_time" class="input-lg">
+                        <option value="">— Pilih Masa —</option>
+                        {% for h in range(24) %}{% for m in ['00','30'] %}<option
+                            value="{{ '%02d'|format(h) }}:{{ m }}">{{ '%02d'|format(h) }}:{{ m }}</option>{% endfor %}{%
+                        endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- DOCUMENT UPLOAD -->
+        <div class="section-card">
+            <div class="section-title">
+                <span class="section-label">📎 Dokumen</span>
+                Muat Naik Perjanjian Pembelian <span class="field-helper">(Purchase Agreement)</span>
+            </div>
+            <div style="padding: 16px 20px;">
+                <label
+                    style="display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-radius: 10px; background: rgba(6,182,212,0.04); border: 1.5px dashed rgba(6,182,212,0.2); cursor: pointer; transition: all 0.2s;"
+                    onmouseover="this.style.borderColor='rgba(6,182,212,0.4)'; this.style.background='rgba(6,182,212,0.06)'"
+                    onmouseout="this.style.borderColor='rgba(6,182,212,0.2)'; this.style.background='rgba(6,182,212,0.04)'">
+                    <span style="font-size: 24px;">📄</span>
+                    <div>
+                        <div style="font-size: 13px; font-weight: 600; color: #67e8f9;">Pilih fail Perjanjian Pembelian
+                        </div>
+                        <div style="font-size: 11px; color: #64748b;">Format: PDF, JPG, PNG (maks 10MB)</div>
+                    </div>
+                    <input type="file" name="case_document" accept=".pdf,.jpg,.jpeg,.png" style="display: none;"
+                        onchange="this.closest('label').querySelector('.file-name').textContent = this.files[0]?.name || 'Belum dipilih'">
+                    <span class="file-name" style="font-size: 12px; color: #94a3b8; margin-left: auto;">Belum
+                        dipilih</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="section-divider"></div>
+        <div class="flex justify-end pt-2">
+            <button type="submit"
+                class="btn-submit-lg bg-gov-600 hover:bg-gov-500 text-white shadow-lg shadow-gov-600/20">
+                ➕ Tambah Kes Baharu
+            </button>
+        </div>
+    </form>
+    {% endif %}
+</div>
+
+<!-- ╔══════════════════════════════════════════════════╗ -->
+<!-- ║           EARLY SETTLEMENT / IBRA' TAB          ║ -->
+<!-- ╚══════════════════════════════════════════════════╝ -->
+<div id="panel-early_settlement" class="tab-panel hidden space-y-6">
+
+    {% if cases_by_type.early_settlement %}
+    <div
+        style="background: rgba(15,23,42,0.5); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; overflow: hidden; margin-bottom: 24px;">
+        <!-- Table Header -->
+        <div
+            style="padding: 16px 24px; background: linear-gradient(135deg, rgba(34,197,94,0.06), rgba(16,185,129,0.04)); border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 18px;">💰</span>
+                    <div>
+                        <div style="font-size: 14px; font-weight: 700; color: #e2e8f0; letter-spacing: 0.01em;">Senarai
+                            Kes Penyelesaian Awal</div>
+                        <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Early Settlement / Ibra' — {{
+                            cases_by_type.early_settlement|length }} rekod</div>
+                    </div>
+                </div>
+                <span
+                    style="font-size: 11px; padding: 4px 12px; border-radius: 20px; background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.15); color: #4ade80; font-weight: 600;">{{
+                    cases_by_type.early_settlement|length }} kes</span>
+            </div>
+        </div>
+        <!-- Table -->
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; min-width: 800px;">
+                <thead>
+                    <tr style="background: rgba(255,255,255,0.02);">
+                        <th
+                            style="padding: 12px 16px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.06); white-space: nowrap;">
+                            No. Akaun</th>
+                        <th
+                            style="padding: 12px 16px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            Nama Anggota</th>
+                        <th
+                            style="padding: 12px 16px; text-align: right; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            Jumlah (RM)</th>
+                        <th
+                            style="padding: 12px 16px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #4ade80; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            Klausa Ibra'</th>
+                        <th
+                            style="padding: 12px 16px; text-align: right; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #4ade80; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            Rebat Ibra' (RM)</th>
+                        <th
+                            style="padding: 12px 16px; text-align: right; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #fb923c; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            Caj Penyelesaian (RM)</th>
+                        <th
+                            style="padding: 12px 16px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            Status</th>
+                        {% if not readonly %}<th
+                            style="padding: 12px 12px; text-align: center; font-size: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); width: 40px;">
+                        </th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in cases_by_type.early_settlement %}
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.15s;"
+                        onmouseover="this.style.background='rgba(255,255,255,0.02)'"
+                        onmouseout="this.style.background='transparent'">
+                        <td style="padding: 14px 16px;">
+                            <span
+                                style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #d4a853; background: rgba(212,168,83,0.08); padding: 3px 10px; border-radius: 5px; border: 1px solid rgba(212,168,83,0.15);">{{
+                                c.account_no }}</span>
+                        </td>
+                        <td style="padding: 14px 16px; font-size: 13px; color: #e2e8f0; font-weight: 500;">{{
+                            c.member_name or '—' }}</td>
+                        <td
+                            style="padding: 14px 16px; text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: #fbbf24;">
+                            {{ '{:,.0f}'.format(c.fin_amount or 0) }}</td>
+                        <td style="padding: 14px 16px; text-align: center;">
+                            {% if c.klausa_early_settlement %}
+                            <span
+                                style="font-size: 11px; padding: 4px 12px; border-radius: 20px; background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.18); color: #4ade80; font-weight: 600;">✅
+                                Ada</span>
+                            {% else %}
+                            <span
+                                style="font-size: 11px; padding: 4px 12px; border-radius: 20px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.18); color: #f87171; font-weight: 600;">❌
+                                Tiada</span>
+                            {% endif %}
+                        </td>
+                        <td
+                            style="padding: 14px 16px; text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 13px; {{ 'color: #4ade80; font-weight: 600;' if c.amount_rebate and c.amount_rebate > 0 else 'color: #f87171; font-weight: 700;' }}">
+                            {{ 'RM {:,.2f}'.format(c.amount_rebate) if c.amount_rebate and c.amount_rebate > 0 else '✗
+                            TIADA' }}
+                        </td>
+                        <td
+                            style="padding: 14px 16px; text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 13px; {{ 'color: #fb923c; font-weight: 600;' if c.fee_rebate and c.fee_rebate > 0 else 'color: #94a3b8;' }}">
+                            {{ 'RM {:,.2f}'.format(c.fee_rebate) if c.fee_rebate and c.fee_rebate > 0 else 'RM 0.00' }}
+                        </td>
+                        <td style="padding: 14px 16px; text-align: center;">
+                            {% if c.fee_rebate and c.amount_rebate and c.fee_rebate >= c.amount_rebate %}
+                            <span
+                                style="font-size: 10px; padding: 3px 10px; border-radius: 20px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.18); color: #f87171; font-weight: 700;">⚠
+                                Caj ≥ Rebat</span>
+                            {% elif not c.klausa_early_settlement %}
+                            <span
+                                style="font-size: 10px; padding: 3px 10px; border-radius: 20px; background: rgba(251,146,60,0.08); border: 1px solid rgba(251,146,60,0.18); color: #fb923c; font-weight: 700;">⚠
+                                Klausa Tiada</span>
+                            {% elif not c.amount_rebate or c.amount_rebate <= 0 %} <span
+                                style="font-size: 10px; padding: 3px 10px; border-radius: 20px; background: rgba(251,146,60,0.08); border: 1px solid rgba(251,146,60,0.18); color: #fb923c; font-weight: 700;">
+                                ⚠ Tiada Rebat</span>
+                                {% else %}
+                                <span
+                                    style="font-size: 10px; padding: 3px 10px; border-radius: 20px; background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.18); color: #4ade80; font-weight: 600;">✓
+                                    OK</span>
+                                {% endif %}
+                        </td>
+                        {% if not readonly %}
+                        <td style="padding: 14px 12px; text-align: center;">
+                            <form method="POST" action="{{ url_for('fedkew.delete_case', rid=review.id, cid=c.id) }}"
+                                onsubmit="return confirm('Padam kes {{ c.account_no }}?')">
+                                <button type="submit"
+                                    style="font-size: 14px; padding: 4px 8px; border-radius: 6px; background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.12); color: #f87171; cursor: pointer; transition: all 0.2s;"
+                                    onmouseover="this.style.background='rgba(239,68,68,0.15)'"
+                                    onmouseout="this.style.background='rgba(239,68,68,0.06)'">🗑</button>
+                            </form>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- Table Footer -->
+        <div
+            style="padding: 10px 24px; background: rgba(255,255,255,0.01); border-top: 1px solid rgba(255,255,255,0.04); display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 11px; color: #475569;">Jumlah: {{ cases_by_type.early_settlement|length }}
+                kes</span>
+            <span style="font-size: 11px; color: #475569;">Amaun: <span
+                    style="color: #fbbf24; font-weight: 600; font-family: 'JetBrains Mono', monospace;">RM {{
+                    '{:,.2f}'.format(cases_by_type.early_settlement|sum(attribute='fin_amount')) }}</span></span>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if can_append %}
+    <form method="POST" action="{{ url_for('fedkew.add_case', rid=review.id) }}" class="space-y-6">
+        <input type="hidden" name="process_type" value="early_settlement">
+
+        <!-- SECTION A — Maklumat Asas Pembiayaan -->
+        <div class="section-card">
+            <div class="section-title">
+                <span class="section-label">Section A</span>
+                Maklumat Asas Pembiayaan <span class="field-helper">(Basic Financing Information)</span>
+            </div>
+            <div class="form-grid">
+                <div>
+                    <label class="field-label">No. Akaun <span class="field-helper">(Account No.)</span> <span
+                            class="field-required">*</span></label>
+                    <input name="account_no" required class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Nama Ahli <span class="field-helper">(Member Name)</span></label>
+                    <input name="member_name" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Amaun <span class="field-helper">(Amount RM)</span></label>
+                    <input name="fin_amount" type="number" step="0.01" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Tarikh Permohonan Pembiayaan <span class="field-helper">(Application
+                            Date)</span></label>
+                    <input name="date_appli" type="date" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Tempoh Bulan <span class="field-helper">(Tenure Months)</span></label>
+                    <input name="tenure_period" type="number" class="input-lg">
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION B — Butiran Ibra' -->
+        <div class="section-card">
+            <div class="section-title">
+                <span class="section-label">Section B</span>
+                Butiran Ibra' <span class="field-helper">(Ibra' / Early Settlement Details)</span>
+            </div>
+            <div class="form-grid">
+                <div>
+                    <label class="field-label">Klausa Ibra'? <span class="field-helper">(Ibra' Clause
+                            Exists?)</span></label>
+                    <select name="klausa_early_settlement" class="input-lg">
+                        <option value="yes">Ya (Yes)</option>
+                        <option value="no">Tidak (No)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="field-label">Tarikh Penyelesaian <span class="field-helper">(Settlement
+                            Date)</span></label>
+                    <input name="settlement_date" type="date" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Rebat Ibra' <span class="field-helper">(Ibra' Rebate RM)</span></label>
+                    <input name="amount_rebate" type="number" step="0.01" class="input-lg">
+                </div>
+                <div>
+                    <label class="field-label">Caj Penyelesaian <span class="field-helper">(Settlement Fee
+                            RM)</span></label>
+                    <input name="fee_rebate" type="number" step="0.01" class="input-lg">
+                </div>
+            </div>
+        </div>
+
+        <div class="section-divider"></div>
+        <div class="flex justify-end pt-2">
+            <button type="submit"
+                class="btn-submit-lg bg-gov-600 hover:bg-gov-500 text-white shadow-lg shadow-gov-600/20">
+                ➕ Tambah Kes Baharu
+            </button>
+        </div>
+    </form>
+    {% endif %}
+</div>
+
+<!-- ══════════ BOTTOM SUBMISSION AREA ══════════ -->
+{% if review.status in ('draft', 'resubmit') %}
+<div class="mt-10">
+    <div class="section-divider" style="margin-bottom: 24px;"></div>
+    <div class="flex items-center justify-between">
+        <div>
+            <div class="text-base font-medium text-gray-300">Sedia untuk semakan?</div>
+            <div class="text-sm text-gray-500">Pastikan semua kes telah dimasukkan sebelum menghantar.</div>
+        </div>
+        <form method="POST" action="{{ url_for('fedkew.submit_review', rid=review.id) }}" id="form-submit-bottom"
+            onsubmit="return confirm('Hantar semua kes untuk semakan? Teruskan?')">
+            <button type="submit"
+                class="btn-submit-lg bg-gov-600 hover:bg-gov-500 text-white shadow-lg shadow-gov-600/20">
+                📤 Hantar untuk Semakan
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<style>
+    .tab-btn {
+        color: #6b7280;
+        border-color: transparent;
+    }
+
+    .tab-btn.active {
+        color: #d4a853;
+        border-color: #d4a853;
+    }
+
+    .tab-btn:hover:not(.active) {
+        color: #9ca3af;
+    }
+</style>
+
+<script>
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('panel-' + tab).classList.remove('hidden');
+        document.getElementById('tab-' + tab).classList.add('active');
+    }
+
+    function previewDoc(url, filename) {
+        const modal = document.getElementById('doc-preview-modal');
+        const viewer = document.getElementById('doc-preview-viewer');
+        const title = document.getElementById('doc-preview-title');
+        const dl = document.getElementById('doc-preview-download');
+
+        title.textContent = filename;
+        dl.href = url;
+
+        const ext = filename.split('.').pop().toLowerCase();
+        if (ext === 'pdf') {
+            viewer.innerHTML = '<iframe src="' + url + '" style="width:100%; height:100%; border:none; border-radius: 0 0 12px 12px;"></iframe>';
+        } else {
+            viewer.innerHTML = '<div style="display:flex; align-items:center; justify-content:center; height:100%; padding: 20px; overflow: auto;"><img src="' + url + '" style="max-width:100%; max-height:100%; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);" /></div>';
+        }
+        modal.style.display = 'flex';
+        setTimeout(() => { modal.style.opacity = '1'; }, 10);
+    }
+
+    function closePreview() {
+        const modal = document.getElementById('doc-preview-modal');
+        modal.style.opacity = '0';
+        setTimeout(() => { modal.style.display = 'none'; }, 250);
+    }
+
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closePreview(); });
+</script>
+
+<!-- ═══ Document Preview Modal ═══ -->
+<div id="doc-preview-modal" onclick="if(event.target===this)closePreview()"
+    style="display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); align-items: center; justify-content: center; opacity: 0; transition: opacity 0.25s ease; padding: 24px;">
+    <div
+        style="width: 90vw; max-width: 1000px; height: 88vh; display: flex; flex-direction: column; background: #0f172a; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 32px 64px rgba(0,0,0,0.6); overflow: hidden;">
+        <!-- Header -->
+        <div
+            style="display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); flex-shrink: 0;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 18px;">📄</span>
+                <span id="doc-preview-title"
+                    style="font-size: 14px; font-weight: 600; color: #e2e8f0; font-family: 'JetBrains Mono', monospace;"></span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <a id="doc-preview-download" download
+                    style="font-size: 12px; padding: 6px 16px; border-radius: 6px; background: rgba(6,182,212,0.1); border: 1px solid rgba(6,182,212,0.2); color: #67e8f9; cursor: pointer; text-decoration: none; font-weight: 600; transition: all 0.2s;"
+                    onmouseover="this.style.background='rgba(6,182,212,0.2)'"
+                    onmouseout="this.style.background='rgba(6,182,212,0.1)'">
+                    ⬇ Muat Turun
+                </a>
+                <button onclick="closePreview()"
+                    style="width: 32px; height: 32px; border-radius: 6px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.15); color: #f87171; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;"
+                    onmouseover="this.style.background='rgba(239,68,68,0.2)'"
+                    onmouseout="this.style.background='rgba(239,68,68,0.08)'">
+                    ✕
+                </button>
+            </div>
+        </div>
+        <!-- Viewer -->
+        <div id="doc-preview-viewer" style="flex: 1; overflow: auto;"></div>
+    </div>
+</div>
+{% endblock %}

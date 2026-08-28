@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+instance/
+.env
+*.db
+uploads/cases/
+reports/
+.DS_Store
+*.log

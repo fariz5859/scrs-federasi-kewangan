@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}Semakan Baharu{% endblock %}
+{% block page_title %}Semakan Baharu{% endblock %}
+{% block page_subtitle %}Masukkan maklumat koperasi untuk memulakan semakan pematuhan Syariah{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 32px; align-items: start;">
+
+    <!-- ══════════ LEFT: FORM PANEL ══════════ -->
+    <div class="space-y-6">
+
+        <!-- Step Indicator -->
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+            <span
+                style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; background: rgba(22,163,74,0.12); border: 1px solid rgba(22,163,74,0.25); font-size: 14px; font-weight: 700; color: #4ade80;">1</span>
+            <div>
+                <div style="font-size: 15px; font-weight: 600; color: #f1f5f9;">Langkah 1 daripada 3</div>
+                <div style="font-size: 13px; color: #64748b;">Pendaftaran Koperasi</div>
+            </div>
+            <div style="flex: 1; display: flex; align-items: center; gap: 4px; margin-left: 20px;">
+                <div style="flex: 1; height: 4px; border-radius: 2px; background: #4ade80;"></div>
+                <div style="flex: 1; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.06);"></div>
+                <div style="flex: 1; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.06);"></div>
+            </div>
+        </div>
+
+        <!-- Form Card -->
+        <div class="section-card">
+            <div class="section-title">
+                <span class="section-label">Bahagian A</span>
+                Maklumat Koperasi <span class="field-helper">(Cooperative Information)</span>
+            </div>
+
+            <form method="POST" action="{{ url_for('fedkew.create_review') }}" id="formNewReview">
+                <div style="display: flex; flex-direction: column; gap: 24px;">
+
+                    <!-- Nama Koperasi -->
+                    <div>
+                        <label class="field-label">
+                            Nama Koperasi <span class="field-helper">(Cooperative Name)</span>
+                            <span class="field-required">*</span>
+                        </label>
+                        <input type="text" name="koperasi_name" required class="input-lg"
+                            placeholder="cth: Koperasi ABC Berhad" id="inp-koperasi-name">
+                        <div style="font-size: 13px; color: #475569; margin-top: 6px;">Nama penuh seperti yang berdaftar
+                            dengan SKM.</div>
+                    </div>
+
+                    <!-- No. Pendaftaran -->
+                    <div>
+                        <label class="field-label">
+                            No. Pendaftaran <span class="field-helper">(Registration No.)</span>
+                            <span class="field-required">*</span>
+                        </label>
+                        <input type="text" name="no_pendaftaran" required class="input-lg" placeholder="cth: W-6-0396"
+                            id="inp-no-pendaftaran">
+                        <div style="font-size: 13px; color: #475569; margin-top: 6px;">Nombor pendaftaran rasmi koperasi
+                            (SSM/SKM).</div>
+                    </div>
+
+                    <!-- Validation Panel -->
+                    <div id="validation-panel" class="hidden"
+                        style="padding: 14px 18px; border-radius: 8px; background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.15);">
+                        <div style="font-size: 14px; font-weight: 600; color: #fbbf24; margin-bottom: 6px;">⚠️ Sila
+                            lengkapkan:</div>
+                        <ul id="validation-list"
+                            style="font-size: 14px; color: #fcd34d; list-style: disc; padding-left: 20px;"></ul>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div style="padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06);">
+                        <button type="submit"
+                            class="btn-submit-lg bg-gov-600 hover:bg-gov-500 text-white shadow-lg shadow-gov-600/20"
+                            style="width: 100%;">
+                            Cipta Semakan →
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ══════════ RIGHT: CONTEXT PANEL ══════════ -->
+    <div class="space-y-5" style="position: sticky; top: 100px;">
+
+        <!-- Process Steps -->
+        <div class="section-card" style="padding: 24px;">
+            <div style="font-size: 15px; font-weight: 600; color: #f1f5f9; margin-bottom: 16px;">📋 Langkah Proses</div>
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                <div style="display: flex; gap: 12px; align-items: flex-start;">
+                    <div
+                        style="width: 28px; height: 28px; border-radius: 6px; background: rgba(22,163,74,0.12); border: 1px solid rgba(22,163,74,0.25); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #4ade80; flex-shrink: 0;">
+                        1</div>
+                    <div>
+                        <div style="font-size: 14px; font-weight: 500; color: #e2e8f0;">Daftar Koperasi</div>
+                        <div style="font-size: 13px; color: #64748b;">Masukkan nama dan no. pendaftaran</div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 12px; align-items: flex-start;">
+                    <div
+                        style="width: 28px; height: 28px; border-radius: 6px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #64748b; flex-shrink: 0;">
+                        2</div>
+                    <div>
+                        <div style="font-size: 14px; font-weight: 500; color: #94a3b8;">Kemasukan Data</div>
+                        <div style="font-size: 13px; color: #64748b;">Masukkan kes pembiayaan (Tawaruk / Opsyen)</div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 12px; align-items: flex-start;">
+                    <div
+                        style="width: 28px; height: 28px; border-radius: 6px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #64748b; flex-shrink: 0;">
+                        3</div>
+                    <div>
+                        <div style="font-size: 14px; font-weight: 500; color: #94a3b8;">Hantar untuk Semakan</div>
+                        <div style="font-size: 13px; color: #64748b;">Sistem AI akan menyemak pematuhan syariah</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Required Documents -->
+        <div class="section-card" style="padding: 24px;">
+            <div style="font-size: 15px; font-weight: 600; color: #f1f5f9; margin-bottom: 16px;">📄 Dokumen Diperlukan
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: #94a3b8;">
+                    <span style="color: #64748b;">•</span> Surat Tawaran Pembiayaan
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: #94a3b8;">
+                    <span style="color: #64748b;">•</span> Surat Penerimaan Ahli
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: #94a3b8;">
+                    <span style="color: #64748b;">•</span> Wakalah Agreement
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: #94a3b8;">
+                    <span style="color: #64748b;">•</span> Kontrak Murabahah
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: #94a3b8;">
+                    <span style="color: #64748b;">•</span> Bukti Pengeluaran Wang
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Box -->
+        <div
+            style="padding: 16px 20px; border-radius: 8px; background: rgba(59,130,246,0.04); border: 1px solid rgba(59,130,246,0.12);">
+            <div style="font-size: 13px; color: #60a5fa; line-height: 1.6;">
+                <strong>ℹ️ Nota:</strong> Setiap semakan akan dijana nombor rujukan unik secara automatik. Satu koperasi
+                boleh mempunyai lebih daripada satu semakan.
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    @media (max-width: 900px) {
+        div[style*="grid-template-columns: 2fr 1fr"] {
+            grid-template-columns: 1fr !important;
+        }
+    }
+</style>
+
+<script>
+    document.getElementById('formNewReview').addEventListener('submit', function (e) {
+        const name = document.getElementById('inp-koperasi-name').value.trim();
+        const no = document.getElementById('inp-no-pendaftaran').value.trim();
+        const issues = [];
+        if (!name) issues.push('Nama Koperasi wajib diisi');
+        if (!no) issues.push('No. Pendaftaran wajib diisi');
+        if (issues.length > 0) {
+            e.preventDefault();
+            const panel = document.getElementById('validation-panel');
+            const list = document.getElementById('validation-list');
+            list.innerHTML = issues.map(i => '<li>' + i + '</li>').join('');
+            panel.classList.remove('hidden');
+        }
+    });
+</script>
+{% endblock %}

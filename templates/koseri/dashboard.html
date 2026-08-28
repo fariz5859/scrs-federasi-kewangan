@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}KoSERI Dashboard{% endblock %}
+{% block page_title %}Workbench Penasihat Syariah{% endblock %}
+{% block page_subtitle %}Semakan dalaman — maklumat sulit{% endblock %}
+
+{% block content %}
+<!-- ══════════ KPI CARDS ══════════ -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-10">
+    <!-- Menunggu Semakan -->
+    <div class="section-card flex items-start gap-4" style="border-left: 4px solid #f59e0b;">
+        <div>
+            <div style="font-size: 38px; font-weight: 700; line-height: 1; color: #fbbf24;">{{ stats.pending }}</div>
+            <div
+                style="font-size: 14px; color: #94a3b8; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500;">
+                Menunggu Semakan</div>
+        </div>
+    </div>
+    <!-- Jumlah Kes (Pending) -->
+    <div class="section-card flex items-start gap-4" style="border-left: 4px solid #64748b;">
+        <div>
+            <div style="font-size: 38px; font-weight: 700; line-height: 1; color: #f1f5f9;">{{ stats.total_cases_pending
+                }}</div>
+            <div
+                style="font-size: 14px; color: #94a3b8; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500;">
+                Jumlah Kes (Pending)</div>
+        </div>
+    </div>
+    <!-- Selesai -->
+    <div class="section-card flex items-start gap-4" style="border-left: 4px solid #22c55e;">
+        <div>
+            <div style="font-size: 38px; font-weight: 700; line-height: 1; color: #4ade80;">{{ stats.completed }}</div>
+            <div
+                style="font-size: 14px; color: #94a3b8; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500;">
+                Selesai</div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ PENDING REVIEWS TABLE ══════════ -->
+{% if pending %}
+<div class="section-card mb-8" style="padding: 0;">
+    <div style="padding: 20px 28px; border-bottom: 1px solid rgba(255,255,255,0.06);"
+        class="flex items-center justify-between">
+        <div>
+            <h2 style="font-size: 20px; font-weight: 600; color: #fbbf24; margin: 0;">Menunggu Semakan Anda</h2>
+            <span style="font-size: 14px; color: #64748b;">{{ pending|length }} semakan memerlukan tindakan</span>
+        </div>
+    </div>
+    <div class="overflow-x-auto">
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: rgba(255,255,255,0.03);">
+                    <th
+                        style="padding: 14px 28px; text-align: left; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        Rujukan</th>
+                    <th
+                        style="padding: 14px 20px; text-align: left; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        Koperasi</th>
+                    <th
+                        style="padding: 14px 20px; text-align: right; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        Kes</th>
+                    <th
+                        style="padding: 14px 20px; text-align: center; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        AI Penemuan</th>
+                    <th
+                        style="padding: 14px 20px; text-align: left; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        Dihantar</th>
+                    <th
+                        style="padding: 14px 28px; text-align: right; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        Tindakan</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in pending %}
+                <tr class="table-row"
+                    style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s;">
+                    <td style="padding: 16px 28px;">
+                        <span style="font-size: 15px; font-family: monospace; color: #d4a853; font-weight: 500;">{{
+                            r.reference_no }}</span>
+                    </td>
+                    <td style="padding: 16px 20px; font-size: 15px; font-weight: 500; color: #f1f5f9;">{{
+                        r.koperasi_name }}</td>
+                    <td style="padding: 16px 20px; font-size: 15px; text-align: right; color: #cbd5e1;">
+                        {{ r.case_count }} kes
+                        {% if r.non_compliant_count %}<span
+                            style="font-size: 13px; color: #f87171; margin-left: 4px;">({{ r.non_compliant_count }}
+                            ❌)</span>{% endif %}
+                    </td>
+                    <td style="padding: 16px 20px; text-align: center;">
+                        {% set total_findings = [] %}
+                        {% for c in r.cases %}{% for f in c.findings %}{% if total_findings.append(f) %}{% endif %}{%
+                        endfor %}{% endfor %}
+                        {% set highs = total_findings|selectattr('severity', 'equalto', 'HIGH')|list|length %}
+                        {% if highs %}
+                        <span
+                            style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 6px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.15); font-size: 13px; font-weight: 600; color: #f87171;">🔴
+                            {{ highs }} Kritikal</span>
+                        {% else %}
+                        <span style="font-size: 14px; color: #64748b;">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 16px 20px; font-size: 14px; color: #94a3b8;">{{
+                        r.submitted_at.strftime('%d/%m/%Y') if r.submitted_at else '—' }}</td>
+                    <td style="padding: 16px 28px; text-align: right;">
+                        <a href="{{ url_for('koseri.workbench', rid=r.id) }}"
+                            style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 20px; border-radius: 6px; background: rgba(168,85,247,0.1); border: 1px solid rgba(168,85,247,0.2); color: #c084fc; font-size: 14px; font-weight: 600; text-decoration: none; transition: all 0.15s;">
+                            Semak →
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- ══════════ COMPLETED REVIEWS TABLE ══════════ -->
+{% if completed %}
+<div class="section-card" style="padding: 0;">
+    <div style="padding: 20px 28px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <h2 style="font-size: 20px; font-weight: 600; color: #4ade80; margin: 0;">Semakan Selesai</h2>
+        <span style="font-size: 14px; color: #64748b;">{{ completed|length }} semakan telah diselesaikan</span>
+    </div>
+    <div class="overflow-x-auto">
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: rgba(255,255,255,0.03);">
+                    <th
+                        style="padding: 14px 28px; text-align: left; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        Rujukan</th>
+                    <th
+                        style="padding: 14px 20px; text-align: left; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        Koperasi</th>
+                    <th
+                        style="padding: 14px 20px; text-align: right; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        Kes</th>
+                    <th
+                        style="padding: 14px 20px; text-align: left; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        Selesai</th>
+                    <th
+                        style="padding: 14px 28px; text-align: center; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        Status</th>
+                    <th
+                        style="padding: 14px 28px; text-align: right; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                        Tindakan</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in completed %}
+                <tr class="table-row"
+                    style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s;">
+                    <td style="padding: 16px 28px;">
+                        <span style="font-size: 15px; font-family: monospace; color: #94a3b8; font-weight: 500;">{{
+                            r.reference_no }}</span>
+                    </td>
+                    <td style="padding: 16px 20px; font-size: 15px; color: #cbd5e1;">{{ r.koperasi_name }}</td>
+                    <td style="padding: 16px 20px; font-size: 15px; text-align: right; color: #94a3b8;">{{ r.case_count
+                        }}</td>
+                    <td style="padding: 16px 20px; font-size: 14px; color: #94a3b8;">{{
+                        r.koseri_done_at.strftime('%d/%m/%Y') if r.koseri_done_at else '—' }}</td>
+                    <td style="padding: 16px 28px; text-align: center;">{% with status=r.status %}{% include
+                        'components/_status_badge.html' %}{% endwith %}</td>
+                    <td style="padding: 16px 28px; text-align: right;">
+                        <a href="{{ url_for('koseri.workbench', rid=r.id) }}"
+                            style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 20px; border-radius: 6px; background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.15); color: #4ade80; font-size: 14px; font-weight: 600; text-decoration: none; transition: all 0.15s;">
+                            📋 Lihat →
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<style>
+    .table-row:hover {
+        background: rgba(255, 255, 255, 0.03) !important;
+    }
+</style>
+{% endblock %}

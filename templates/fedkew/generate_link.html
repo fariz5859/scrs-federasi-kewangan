@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Jana Pautan Koperasi{% endblock %}
+{% block page_title %}Jana Pautan Koperasi{% endblock %}
+{% block page_subtitle %}Cipta pautan akses + PIN untuk Koperasi memuat naik dokumen{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl animate-in">
+    <div class="glass rounded-xl p-6">
+        <form method="POST" class="space-y-5">
+            <div>
+                <label class="block text-xs font-medium text-gray-400 mb-1.5">Sesi Semakan</label>
+                <select name="session_id" required
+                    class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-green-500/50">
+                    {% for s in sessions %}
+                    <option value="{{ s.id }}">{{ s.title or s.year }} ({{ s.status }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-400 mb-1.5">Nama Koperasi</label>
+                <input type="text" name="koperasi_name" required
+                    class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-green-500/50"
+                    placeholder="cth: Koperasi Lembaga Getah Malaysia Berhad">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-400 mb-1.5">Emel Koperasi</label>
+                <input type="email" name="koperasi_email"
+                    class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-green-500/50"
+                    placeholder="admin@koperasi.coop">
+            </div>
+            <button type="submit"
+                class="w-full py-3 rounded-xl bg-green-600 hover:bg-green-500 text-white text-sm font-semibold transition shadow-lg shadow-green-600/20">
+                🔗 Jana Pautan + PIN
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,14 @@
+{# Severity Badge Component — usage: {% include 'components/_severity_badge.html' %} with severity=xxx #}
+{% set sev_config = {
+'HIGH': {'label': 'KRITIKAL', 'bg': 'bg-red-500/12', 'text': 'text-red-400', 'border': 'border-red-500/30', 'icon':
+'🔴'},
+'MEDIUM': {'label': 'SEDERHANA','bg': 'bg-amber-500/12', 'text': 'text-amber-400', 'border': 'border-amber-500/30',
+'icon': '🟡'},
+'INFO': {'label': 'MAKLUMAT', 'bg': 'bg-blue-500/12', 'text': 'text-blue-400', 'border': 'border-blue-500/30', 'icon':
+'🔵'},
+} %}
+{% set sc = sev_config.get(severity, sev_config['INFO']) %}
+<span
+    class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider border {{ sc.bg }} {{ sc.text }} {{ sc.border }}">
+    {{ sc.icon }} {{ sc.label }}
+</span>
