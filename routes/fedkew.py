@@ -17,7 +17,7 @@ def fedkew_required(f):
     @wraps(f)
     @login_required
     def decorated(*args, **kwargs):
-        if current_user.role != 'fedkew':
+        if current_user.role not in ('fedkew', 'admin'):
             flash('Akses ditolak — FedKew sahaja.', 'danger')
             return redirect(url_for('auth.login'))
         return f(*args, **kwargs)

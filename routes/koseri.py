@@ -12,7 +12,7 @@ def koseri_required(f):
     @wraps(f)
     @login_required
     def decorated(*args, **kwargs):
-        if current_user.role != 'koseri':
+        if current_user.role not in ('koseri', 'admin'):
             flash('Akses ditolak — KoSERI sahaja.', 'danger')
             return redirect(url_for('auth.login'))
         return f(*args, **kwargs)
