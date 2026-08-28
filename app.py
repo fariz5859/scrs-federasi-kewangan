@@ -1,6 +1,7 @@
 """SSPS — Shariah Compliance Review System v2.0."""
 from flask import Flask
 from flask_login import LoginManager
+from werkzeug.middleware.proxy_fix import ProxyFix
 from config import Config
 from models import db, User
 import os
@@ -9,6 +10,9 @@ import os
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+
+    # Fix for reverse proxy (Render.com HTTPS)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
     # Ensure directories exist
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
